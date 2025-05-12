@@ -9,13 +9,14 @@ export interface Conversation {
   id: string;
   participants: string[];
   lastMessage?: string;
-  lastMessageTime?: string;
+  lastMessageTime?: Date | string;
   unreadCount?: number;
   otherUser: {
     id: string;
     displayName: string;
     photoURL: string | null;
     headline: string;
+    isOnline?: boolean;
   };
 }
 
@@ -120,6 +121,7 @@ export const saveConversation = (conversation: {
     displayName: string;
     photoURL: string | null;
     headline: string;
+    isOnline?: boolean;
   };
 }) => {
   try {
@@ -188,4 +190,4 @@ export const saveConversations = (conversations: Conversation[]) => {
   } catch (error) {
     console.error('Error saving conversations:', error);
   }
-}; 
+};

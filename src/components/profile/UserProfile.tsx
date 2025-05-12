@@ -19,6 +19,7 @@ interface UserProfile {
   bio: string;
   location: string;
   occupation: string;
+  headline?: string;
   interests: string[];
   connections: string[];
   posts: string[];
@@ -39,7 +40,15 @@ export function UserProfile() {
       if (!userId) return;
       try {
         const userProfile = await getUserProfile(userId);
-        setProfile(userProfile);
+        // Initialize missing fields if they don't exist
+        const completeProfile = {
+          ...userProfile,
+          interests: userProfile.interests || [],
+          connections: userProfile.connections || [],
+          posts: userProfile.posts || [],
+        } as UserProfile;
+        
+        setProfile(completeProfile);
       } catch (error) {
         console.error('Error fetching profile:', error);
         toast.error('Failed to load profile');
@@ -160,4 +169,4 @@ export function UserProfile() {
       </Card>
     </motion.div>
   );
-} 
+}

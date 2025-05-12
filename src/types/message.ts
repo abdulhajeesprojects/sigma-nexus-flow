@@ -9,5 +9,5 @@ export interface Message {
   read: boolean;
   status?: 'sent' | 'delivered' | 'read';
   reactions?: Record<string, string>;
-  replyTo?: Message;
+  replyTo?: Message | null;
 }

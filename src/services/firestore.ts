@@ -13,7 +13,8 @@ import {
   deleteDoc,
   getFirestore,
   orderBy,
-  limit
+  limit,
+  writeBatch
 } from "firebase/firestore";
 import { ref, uploadBytes, getDownloadURL, deleteObject } from "firebase/storage";
 import { firestore, storage, auth } from "@/lib/firebase";
@@ -27,8 +28,10 @@ export interface UserProfile {
   email: string;
   photoURL?: string;
   bio?: string;
+  headline?: string;
   location?: string;
   occupation?: string;
+  settings?: Record<string, any>;
   username: string;
   createdAt: Date;
   updatedAt: Date;
@@ -51,6 +54,7 @@ export const createUserProfile = async (user: User): Promise<void> => {
         photoURL: user.photoURL || null,
         username: defaultUsername,
         bio: '',
+        headline: '',
         location: '',
         occupation: '',
         createdAt: serverTimestamp(),
@@ -116,7 +120,9 @@ export const getAllUsers = async (limit = 50) => {
     
     const usersQuery = query(
       collection(firestore, "users"),
-      where("userId", "!=", currentUser.uid)
+      where("id", "!=", currentUser.uid),
+      orderBy("id"),
+      limit
     );
     
     const usersSnapshot = await getDocs(usersQuery);
@@ -125,7 +131,6 @@ export const getAllUsers = async (limit = 50) => {
       const data = doc.data();
       return { 
         id: doc.id, 
-        userId: data.userId,
         displayName: data.displayName || "User",
         headline: data.headline || "",
         photoURL: data.photoURL || null,

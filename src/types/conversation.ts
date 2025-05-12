@@ -1,3 +1,4 @@
+
 export interface Conversation {
   id: string;
   participants: string[];
@@ -9,5 +10,6 @@ export interface Conversation {
     displayName: string;
     photoURL: string | null;
     headline: string;
+    isOnline?: boolean;
   };
-} 
+}
