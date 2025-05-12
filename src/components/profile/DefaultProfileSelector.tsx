@@ -1,11 +1,10 @@
-
 import React, { useState } from 'react';
 import { motion } from 'framer-motion';
 import { defaultProfileImages } from '@/lib/defaultProfileImages';
 import { Button } from '@/components/ui/button';
 import { updateUserProfile } from '@/services/firestore';
 import { useToast } from '@/hooks/use-toast';
-import { useAuth } from '@/hooks/use-auth';
+import { useAuth } from '@/contexts/AuthContext';
 
 interface DefaultProfileSelectorProps {
   onImageSelected?: (url: string) => void;

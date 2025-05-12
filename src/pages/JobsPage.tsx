@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
 import { useNavigate } from "react-router-dom";
@@ -123,8 +122,8 @@ const JobsPage = () => {
 
   if (loading) {
     return (
-      <div className="min-h-screen pt-20 px-4 bg-background">
-        <div className="container mx-auto max-w-4xl">
+      <div className="min-h-screen pt-20 px-2 sm:px-4 bg-background">
+        <div className="w-full sm:container sm:mx-auto sm:max-w-4xl">
           <div className="space-y-4">
             {[...Array(5)].map((_, i) => (
               <motion.div
@@ -142,10 +141,10 @@ const JobsPage = () => {
   }
 
   return (
-    <div className="min-h-screen pt-20 px-4 bg-background">
-      <div className="container mx-auto">
-        <div className="max-w-4xl mx-auto">
-          <div className="flex flex-col md:flex-row md:items-center md:justify-between mb-6">
+    <div className="min-h-screen pt-20 px-2 sm:px-4 bg-background">
+      <div className="w-full sm:container sm:mx-auto">
+        <div className="w-full sm:max-w-4xl sm:mx-auto">
+          <div className="flex flex-col md:flex-row md:items-center md:justify-between mb-4 sm:mb-6">
             <h1 className="text-2xl font-bold">Find Your Next Opportunity</h1>
             <Button 
               className="mt-2 md:mt-0 bg-gradient-to-r from-sigma-blue to-sigma-purple hover:from-sigma-purple hover:to-sigma-blue text-white"

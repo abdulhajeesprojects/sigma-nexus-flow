@@ -1,73 +1,160 @@
-# Welcome to your Lovable project
+# Sigma Hub - Professional Social Network
 
-## Project info
+A modern, feature-rich professional social networking platform built with React, TypeScript, and Firebase.
 
-**URL**: https://lovable.dev/projects/aa9bdbb8-3468-4c2d-9073-2747f4ec47fa
+## 🌟 Features
 
-## How can I edit this code?
+### Core Features
+- **Authentication System**
+  - Email/Password authentication
+  - Google Sign-in
+  - Secure session management
+  - Protected routes
 
-There are several ways of editing your application.
+- **User Profiles**
+  - Professional profile creation
+  - Customizable profile sections
+  - Profile completion progress
+  - Skills and expertise showcase
+  - Professional headline
+  - Profile visibility settings
 
-**Use Lovable**
+- **Networking**
+  - Connection management
+  - Connection requests
+  - Professional network visualization
+  - Mutual connections display
+  - Network growth analytics
 
-Simply visit the [Lovable Project](https://lovable.dev/projects/aa9bdbb8-3468-4c2d-9073-2747f4ec47fa) and start prompting.
+- **Messaging System**
+  - Real-time chat using Pusher
+  - Message status indicators
+  - Typing indicators
+  - Message reactions
+  - Reply functionality
+  - Media sharing
+  - Read receipts
+  - Online status
 
-Changes made via Lovable will be committed automatically to this repo.
+- **Feed & Content**
+  - Dynamic post creation
+  - Rich text formatting
+  - Media attachments
+  - Post interactions (likes, comments)
+  - Post sharing
+  - Content filtering
+  - Infinite scroll
 
-**Use your preferred IDE**
+- **Job Board**
+  - Job posting creation
+  - Job search functionality
+  - Application tracking
+  - Job recommendations
+  - Company profiles
 
-If you want to work locally using your own IDE, you can clone this repo and push changes. Pushed changes will also be reflected in Lovable.
+### Technical Features
+- **Modern UI/UX**
+  - Responsive design
+  - Dark/Light theme support
+  - Smooth animations
+  - Intuitive navigation
+  - Mobile-first approach
 
-The only requirement is having Node.js & npm installed - [install with nvm](https://github.com/nvm-sh/nvm#installing-and-updating)
+- **Performance**
+  - Optimized Firebase reads/writes
+  - Efficient caching system
+  - Lazy loading
+  - Code splitting
+  - Image optimization
 
-Follow these steps:
+- **Security**
+  - Firebase security rules
+  - Protected API endpoints
+  - Secure data handling
+  - Input validation
+  - XSS protection
 
-```sh
-# Step 1: Clone the repository using the project's Git URL.
-git clone <YOUR_GIT_URL>
+## 🛠️ Tech Stack
 
-# Step 2: Navigate to the project directory.
-cd <YOUR_PROJECT_NAME>
+- **Frontend**
+  - React 18
+  - TypeScript
+  - Tailwind CSS
+  - Shadcn UI
+  - Framer Motion
+  - React Query
+  - React Router
 
-# Step 3: Install the necessary dependencies.
-npm i
+- **Backend**
+  - Firebase
+    - Authentication
+    - Firestore
+    - Storage
+    - Cloud Functions
+  - Pusher (Real-time features)
 
-# Step 4: Start the development server with auto-reloading and an instant preview.
+- **Development Tools**
+  - Vite
+  - ESLint
+  - Prettier
+  - TypeScript
+  - Git
+
+## 🚀 Getting Started
+
+### Prerequisites
+- Node.js (v16 or higher)
+- npm or yarn
+- Firebase account
+- Pusher account
+
+### Installation
+
+1. Clone the repository
+```bash
+git clone https://github.com/aj05hacker/sigma_hub_social.git
+cd sigma_hub_social
+```
+
+2. Install dependencies
+```bash
+npm install
+```
+
+3. Create a `.env` file in the root directory with your Firebase and Pusher credentials:
+```env
+VITE_FIREBASE_API_KEY=your_api_key
+VITE_FIREBASE_AUTH_DOMAIN=your_auth_domain
+VITE_FIREBASE_PROJECT_ID=your_project_id
+VITE_FIREBASE_STORAGE_BUCKET=your_storage_bucket
+VITE_FIREBASE_MESSAGING_SENDER_ID=your_messaging_sender_id
+VITE_FIREBASE_APP_ID=your_app_id
+VITE_PUSHER_APP_ID=your_pusher_app_id
+VITE_PUSHER_KEY=your_pusher_key
+VITE_PUSHER_SECRET=your_pusher_secret
+VITE_PUSHER_CLUSTER=your_pusher_cluster
+```
+
+4. Start the development server
+```bash
 npm run dev
 ```
 
-**Edit a file directly in GitHub**
+## 📦 Deployment
 
-- Navigate to the desired file(s).
-- Click the "Edit" button (pencil icon) at the top right of the file view.
-- Make your changes and commit the changes.
+The project is configured for deployment on Vercel. Simply connect your GitHub repository to Vercel for automatic deployments.
 
-**Use GitHub Codespaces**
+## 🤝 Contributing
 
-- Navigate to the main page of your repository.
-- Click on the "Code" button (green button) near the top right.
-- Select the "Codespaces" tab.
-- Click on "New codespace" to launch a new Codespace environment.
-- Edit files directly within the Codespace and commit and push your changes once you're done.
+Contributions are welcome! Please feel free to submit a Pull Request.
 
-## What technologies are used for this project?
+## 📝 License
 
-This project is built with:
+This project is licensed under the MIT License - see the LICENSE file for details.
 
-- Vite
-- TypeScript
-- React
-- shadcn-ui
-- Tailwind CSS
+## 🙏 Acknowledgments
 
-## How can I deploy this project?
-
-Simply open [Lovable](https://lovable.dev/projects/aa9bdbb8-3468-4c2d-9073-2747f4ec47fa) and click on Share -> Publish.
-
-## Can I connect a custom domain to my Lovable project?
-
-Yes, you can!
-
-To connect a domain, navigate to Project > Settings > Domains and click Connect Domain.
-
-Read more here: [Setting up a custom domain](https://docs.lovable.dev/tips-tricks/custom-domain#step-by-step-guide)
+- [Shadcn UI](https://ui.shadcn.com/) for the beautiful UI components
+- [Tailwind CSS](https://tailwindcss.com/) for the utility-first CSS framework
+- [Firebase](https://firebase.google.com/) for the backend services
+- [Pusher](https://pusher.com/) for real-time features

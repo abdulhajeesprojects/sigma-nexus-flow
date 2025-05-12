@@ -1,202 +1,206 @@
-
 import { useState, useEffect, useRef } from "react";
-import { motion } from "framer-motion";
-import { useNavigate } from "react-router-dom";
-import { 
-  collection, query, orderBy, limit, getDocs, 
-  doc, getDoc, addDoc, serverTimestamp, where 
-} from "firebase/firestore";
-import { firestore, auth } from "@/lib/firebase";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { Message } from "@/types/message";
+import { Conversation, saveMessages, saveConversations, getMessages, getConversations } from "@/services/localStorage";
+import { UserSearch } from '@/components/messages/UserSearch';
+import { Check, CheckCheck, Search, Send, MoreVertical, Paperclip, Smile, X, Reply, ThumbsUp } from "lucide-react";
+import gsap from "gsap";
+import { ScrollTrigger } from "gsap/ScrollTrigger";
+import { useAuth } from '@/contexts/AuthContext';
+import Pusher from 'pusher-js';
+import ChannelSubscription from '@/components/messages/ChannelSubscription';
+import { Badge } from "@/components/ui/badge";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 
-interface Message {
-  id: string;
-  senderId: string;
-  receiverId: string;
-  text: string;
-  timestamp: any;
-  read: boolean;
-}
+gsap.registerPlugin(ScrollTrigger);
 
-interface Conversation {
-  id: string;
-  participants: string[];
-  lastMessage: string;
-  lastMessageTime: any;
-  unreadCount: number;
-  otherUser: {
-    id: string;
-    displayName: string;
-    photoURL: string | null;
-  };
+// Initialize Pusher
+const pusherInstance = new Pusher('85a86b13a7f1b409249e', {
+  cluster: 'ap2',
+  enabledTransports: ['ws', 'wss'],
+  forceTLS: true
+});
+
+// Store the instance globally
+if (typeof window !== 'undefined') {
+  (window as any).pusher = pusherInstance;
 }
 
 const MessagesPage = () => {
   const [conversations, setConversations] = useState<Conversation[]>([]);
+  const [selectedConversation, setSelectedConversation] = useState<Conversation | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
-  const [newMessage, setNewMessage] = useState("");
-  const [loading, setLoading] = useState(true);
-  const [activeConversation, setActiveConversation] = useState<string | null>(null);
-  const [activeUser, setActiveUser] = useState<any>(null);
+  const [newMessage, setNewMessage] = useState('');
+  const [isLoading, setIsLoading] = useState(true);
+  const [isTyping, setIsTyping] = useState(false);
+  const [replyTo, setReplyTo] = useState<Message | null>(null);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [showSearch, setShowSearch] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
-  const navigate = useNavigate();
   const { toast } = useToast();
+  const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const { currentUser } = useAuth();
 
+  // Load conversations and messages from localStorage
   useEffect(() => {
-    // Check if user is authenticated
-    const unsubscribe = auth.onAuthStateChanged(async (user) => {
-      if (!user) {
-        navigate("/auth");
-        return;
-      }
+    if (currentUser) {
+      const savedConversations = getConversations();
+      setConversations(savedConversations);
+      setIsLoading(false);
+    }
+  }, [currentUser]);
 
+  // Load messages when a conversation is selected
+  useEffect(() => {
+    if (selectedConversation) {
+      const savedMessages = getMessages(selectedConversation.id);
+      setMessages(savedMessages);
+    }
+  }, [selectedConversation]);
+
+  // Subscribe to messages when a conversation is selected
+  useEffect(() => {
+    if (selectedConversation) {
       try {
-        // Fetch conversations
-        const conversationsQuery = query(
-          collection(firestore, "conversations"),
-          where("participants", "array-contains", user.uid),
-          orderBy("lastMessageTime", "desc"),
-          limit(20)
-        );
-        
-        const conversationsSnapshot = await getDocs(conversationsQuery);
-        
-        // Get the conversations and fetch the other user's details
-        const conversationsPromises = conversationsSnapshot.docs.map(async (docSnap) => {
-          const conversationData = docSnap.data();
-          const otherUserId = conversationData.participants.find((id: string) => id !== user.uid);
+        const channel = pusherInstance.subscribe(selectedConversation.id);
+        channel.bind('client-new-message', (data: Message) => {
+          const updatedMessages = [...messages, data];
+          setMessages(updatedMessages);
           
-          let otherUserData = {
-            id: otherUserId,
-            displayName: "User",
-            photoURL: null,
-          };
+          // Update conversation list with new message
+          const updatedConversations = conversations.map(conv => 
+            conv.id === selectedConversation.id 
+              ? { ...conv, lastMessage: data.text, lastMessageTime: data.timestamp.toISOString() }
+              : conv
+          ) as Conversation[];
+          setConversations(updatedConversations);
           
-          try {
-            const userDocRef = doc(firestore, "users", otherUserId);
-            const userDocSnap = await getDoc(userDocRef);
-            
-            if (userDocSnap.exists()) {
-              otherUserData = {
-                id: otherUserId,
-                displayName: userDocSnap.data().displayName || "User",
-                photoURL: userDocSnap.data().photoURL || null,
-              };
-            }
-          } catch (error) {
-            console.error("Error fetching user data:", error);
-          }
-          
-          return {
-            id: docSnap.id,
-            participants: conversationData.participants,
-            lastMessage: conversationData.lastMessage || "",
-            lastMessageTime: conversationData.lastMessageTime,
-            unreadCount: conversationData.unreadCount || 0,
-            otherUser: otherUserData,
-          } as Conversation;
+          // Save updated messages to localStorage
+          saveMessages(selectedConversation.id, updatedMessages);
+          saveConversations(updatedConversations);
         });
-        
-        const conversationsData = await Promise.all(conversationsPromises);
-        setConversations(conversationsData);
-        
-        // If we have conversations, set the first one as active
-        if (conversationsData.length > 0 && !activeConversation) {
-          setActiveConversation(conversationsData[0].id);
-          setActiveUser(conversationsData[0].otherUser);
-          fetchMessages(conversationsData[0].id);
-        }
+
+        return () => {
+          channel.unbind_all();
+          pusherInstance.unsubscribe(selectedConversation.id);
+        };
       } catch (error) {
-        console.error("Error fetching conversations:", error);
+        console.error('Error subscribing to channel:', error);
         toast({
           title: "Error",
-          description: "Failed to load conversations",
+          description: "Failed to subscribe to channel",
           variant: "destructive",
         });
-      } finally {
-        setLoading(false);
       }
-    });
+    }
+  }, [selectedConversation?.id, messages, conversations]);
 
-    return () => unsubscribe();
-  }, [navigate, toast, activeConversation]);
-
+  // Add typing indicator
   useEffect(() => {
-    // Scroll to the bottom of the messages
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages]);
-
-  const fetchMessages = async (conversationId: string) => {
-    try {
-      const messagesQuery = query(
-        collection(firestore, "messages"),
-        where("conversationId", "==", conversationId),
-        orderBy("timestamp", "asc"),
-        limit(100)
-      );
-      
-      const messagesSnapshot = await getDocs(messagesQuery);
-      const messagesData = messagesSnapshot.docs.map((doc) => ({
-        id: doc.id,
-        ...doc.data(),
-      })) as Message[];
-      
-      setMessages(messagesData);
-    } catch (error) {
-      console.error("Error fetching messages:", error);
-      toast({
-        title: "Error",
-        description: "Failed to load messages",
-        variant: "destructive",
+    if (selectedConversation) {
+      const channel = pusherInstance.subscribe(selectedConversation.id);
+      channel.bind('client-typing', (data: { userId: string, isTyping: boolean }) => {
+        if (data.userId !== currentUser?.uid) {
+          setIsTyping(data.isTyping);
+        }
       });
+
+      return () => {
+        channel.unbind_all();
+        pusherInstance.unsubscribe(selectedConversation.id);
+      };
+    }
+  }, [selectedConversation?.id, currentUser?.uid]);
+
+  // Handle typing indicator
+  const handleTyping = (isTyping: boolean) => {
+    if (selectedConversation) {
+      const channel = pusherInstance.channel(selectedConversation.id);
+      channel.trigger('client-typing', { userId: currentUser?.uid, isTyping });
+    }
+  };
+
+  // Handle message reaction
+  const handleReaction = (messageId: string, reaction: string) => {
+    const updatedMessages = messages.map(msg => 
+      msg.id === messageId 
+        ? { ...msg, reactions: { ...msg.reactions, [currentUser?.uid || '']: reaction } }
+        : msg
+    );
+    setMessages(updatedMessages);
+    if (selectedConversation) {
+      saveMessages(selectedConversation.id, updatedMessages);
+    }
+  };
+
+  // Handle message reply
+  const handleReply = (message: Message) => {
+    setReplyTo(message);
+  };
+
+  // Handle message search
+  const handleSearch = (query: string) => {
+    setSearchQuery(query);
+    if (query.trim()) {
+      const filtered = messages.filter(msg => 
+        msg.text.toLowerCase().includes(query.toLowerCase())
+      );
+      setMessages(filtered);
+    } else {
+      // Reset to original messages when search is cleared
+      if (selectedConversation) {
+        const savedMessages = getMessages(selectedConversation.id);
+        setMessages(savedMessages);
+      }
     }
   };
 
   const handleSendMessage = async (e: React.FormEvent) => {
     e.preventDefault();
-    
-    if (!newMessage.trim() || !activeConversation || !auth.currentUser) return;
-    
+    if (!newMessage.trim() || !selectedConversation || !currentUser) return;
+
     try {
-      const messageData = {
-        conversationId: activeConversation,
-        senderId: auth.currentUser.uid,
-        receiverId: activeUser.id,
+      const message: Message = {
+        id: Date.now().toString(),
+        conversationId: selectedConversation.id,
+        senderId: currentUser.uid,
+        receiverId: selectedConversation.participants.find(p => p !== currentUser.uid) || '',
         text: newMessage,
-        timestamp: serverTimestamp(),
-        read: false,
-      };
-      
-      // In a real app, this would add the message to Firestore
-      // and update the conversation's lastMessage and lastMessageTime
-      
-      // For now, just update the local state to show immediate feedback
-      const newMessageObj = {
-        id: `temp-${Date.now()}`,
-        ...messageData,
         timestamp: new Date(),
+        read: false
       };
-      
-      setMessages((prev) => [...prev, newMessageObj]);
-      setNewMessage("");
-      
-      // Update the conversation in the list
-      setConversations((prev) =>
-        prev.map((conv) =>
-          conv.id === activeConversation
-            ? {
-                ...conv,
-                lastMessage: newMessage,
-                lastMessageTime: new Date(),
-              }
-            : conv
-        )
-      );
+
+      // Send message through Pusher
+      const channel = pusherInstance.channel(selectedConversation.id);
+      if (!channel) {
+        throw new Error('Channel not found');
+      }
+      channel.trigger('client-new-message', message);
+
+      // Update local state
+      const updatedMessages = [...messages, message];
+      setMessages(updatedMessages);
+      setNewMessage('');
+
+      // Update conversation list
+      const updatedConversations = conversations.map(conv => 
+        conv.id === selectedConversation.id 
+          ? { ...conv, lastMessage: message.text, lastMessageTime: message.timestamp.toISOString() }
+          : conv
+      ) as Conversation[];
+      setConversations(updatedConversations);
+
+      // Save to localStorage
+      saveMessages(selectedConversation.id, updatedMessages);
+      saveConversations(updatedConversations);
+
     } catch (error) {
-      console.error("Error sending message:", error);
+      console.error('Error sending message:', error);
       toast({
         title: "Error",
         description: "Failed to send message",
@@ -205,209 +209,327 @@ const MessagesPage = () => {
     }
   };
 
-  const handleConversationSelect = (conversationId: string) => {
-    const conversation = conversations.find((c) => c.id === conversationId);
-    if (conversation) {
-      setActiveConversation(conversationId);
-      setActiveUser(conversation.otherUser);
-      fetchMessages(conversationId);
+  const handleUserSelect = (userId: string) => {
+    // Find existing conversation with this user
+    const existingConversation = conversations.find(conv => 
+      conv.participants.includes(userId) && conv.participants.includes(currentUser?.uid || '')
+    );
+
+    if (existingConversation) {
+      setSelectedConversation(existingConversation);
+    } else {
+      // Create new conversation
+      const newConversation: Conversation = {
+        id: `conversation-${Date.now()}`,
+        participants: [currentUser?.uid || '', userId],
+        lastMessage: '',
+        lastMessageTime: new Date().toISOString(),
+        unreadCount: 0,
+        otherUser: {
+          id: userId,
+          displayName: 'New User', // This should be updated with actual user details
+          photoURL: null,
+          headline: ''
+        }
+      };
+
+      setConversations([...conversations, newConversation]);
+      setSelectedConversation(newConversation);
+      saveConversations([...conversations, newConversation]);
     }
   };
 
-  if (loading) {
+  if (!currentUser) {
     return (
-      <div className="min-h-screen pt-20 px-4 bg-background">
-        <div className="container mx-auto max-w-4xl">
-          <div className="glass-card p-6 h-96 animate-pulse"></div>
-        </div>
+      <div className="flex items-center justify-center h-screen">
+        <p>Please sign in to access messages</p>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen pt-20 pb-10 px-4 bg-background">
-      <div className="container mx-auto">
-        <div className="max-w-5xl mx-auto">
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.5 }}
-            className="glass-card overflow-hidden"
-          >
-            <div className="flex h-[calc(80vh-160px)] max-h-[700px]">
-              {/* Conversations Sidebar */}
-              <div className="w-full md:w-1/3 border-r border-secondary/20 flex flex-col">
-                <div className="p-4 border-b border-secondary/20">
-                  <h2 className="text-xl font-bold">Messages</h2>
-                </div>
-                
-                <ScrollArea className="flex-1">
-                  {conversations.length > 0 ? (
-                    <div className="py-2">
-                      {conversations.map((conversation) => (
-                        <div
-                          key={conversation.id}
-                          onClick={() => handleConversationSelect(conversation.id)}
-                          className={`p-3 hover:bg-secondary/10 cursor-pointer ${
-                            activeConversation === conversation.id
-                              ? "bg-secondary/20"
-                              : ""
-                          }`}
-                        >
-                          <div className="flex items-center space-x-3">
-                            <div className="w-10 h-10 rounded-full bg-sigma-blue/20 flex items-center justify-center text-sigma-blue font-bold">
-                              {conversation.otherUser?.displayName?.charAt(0) || "U"}
-                            </div>
-                            <div className="flex-1 min-w-0">
-                              <div className="flex justify-between items-start">
-                                <p className="font-medium truncate">
-                                  {conversation.otherUser?.displayName || "User"}
-                                </p>
-                                {conversation.lastMessageTime && (
-                                  <p className="text-xs text-muted-foreground">
-                                    {new Date(conversation.lastMessageTime?.toDate()).toLocaleDateString()}
-                                  </p>
-                                )}
-                              </div>
-                              <p className="text-sm text-muted-foreground truncate">
-                                {conversation.lastMessage || "No messages yet"}
-                              </p>
-                            </div>
-                            {conversation.unreadCount > 0 && (
-                              <div className="min-w-[20px] h-5 rounded-full bg-sigma-purple text-white text-xs flex items-center justify-center">
-                                {conversation.unreadCount}
-                              </div>
-                            )}
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  ) : (
-                    <div className="p-4 text-center text-muted-foreground">
-                      <p>No conversations yet</p>
-                      <p className="text-sm mt-2">
-                        Connect with other professionals to start messaging
-                      </p>
-                      <Button
-                        onClick={() => navigate("/network")}
-                        variant="outline"
-                        className="mt-4"
-                      >
-                        Find Connections
-                      </Button>
-                    </div>
-                  )}
-                </ScrollArea>
-              </div>
-              
-              {/* Messages Area */}
-              <div className="hidden md:flex flex-col flex-1">
-                {activeConversation ? (
-                  <>
-                    {/* Message Header */}
-                    <div className="p-4 border-b border-secondary/20 flex items-center">
-                      <div className="w-10 h-10 rounded-full bg-sigma-blue/20 flex items-center justify-center text-sigma-blue font-bold mr-3">
-                        {activeUser?.displayName?.charAt(0) || "U"}
-                      </div>
-                      <div>
-                        <p className="font-medium">
-                          {activeUser?.displayName || "User"}
-                        </p>
-                        <p className="text-xs text-muted-foreground">
-                          {activeUser?.headline || "SiGMA Hub Member"}
-                        </p>
-                      </div>
-                    </div>
-                    
-                    {/* Messages */}
-                    <ScrollArea className="flex-1 p-4">
-                      <div className="space-y-4">
-                        {messages.length > 0 ? (
-                          messages.map((message) => (
-                            <div
-                              key={message.id}
-                              className={`flex ${
-                                message.senderId === auth.currentUser?.uid
-                                  ? "justify-end"
-                                  : "justify-start"
-                              }`}
-                            >
-                              <div
-                                className={`max-w-[70%] px-4 py-2 rounded-lg ${
-                                  message.senderId === auth.currentUser?.uid
-                                    ? "bg-sigma-blue text-white"
-                                    : "bg-secondary/50"
-                                }`}
-                              >
-                                <p>{message.text}</p>
-                                <p className="text-xs opacity-70 text-right mt-1">
-                                  {message.timestamp instanceof Date 
-                                    ? message.timestamp.toLocaleTimeString([], {
-                                        hour: "2-digit",
-                                        minute: "2-digit",
-                                      })
-                                    : "Sending..."}
-                                </p>
-                              </div>
-                            </div>
-                          ))
-                        ) : (
-                          <div className="text-center text-muted-foreground">
-                            <p>No messages yet</p>
-                            <p className="text-sm mt-1">
-                              Send a message to start the conversation
-                            </p>
-                          </div>
-                        )}
-                        <div ref={messagesEndRef} />
-                      </div>
-                    </ScrollArea>
-                    
-                    {/* Message Input */}
-                    <form
-                      onSubmit={handleSendMessage}
-                      className="p-4 border-t border-secondary/20 flex space-x-2"
-                    >
-                      <Input
-                        type="text"
-                        placeholder="Type a message..."
-                        value={newMessage}
-                        onChange={(e) => setNewMessage(e.target.value)}
-                        className="flex-1"
-                      />
-                      <Button
-                        type="submit"
-                        disabled={!newMessage.trim()}
-                        className="bg-gradient-to-r from-sigma-blue to-sigma-purple hover:from-sigma-purple hover:to-sigma-blue text-white"
-                      >
-                        Send
-                      </Button>
-                    </form>
-                  </>
-                ) : (
-                  <div className="flex-1 flex items-center justify-center">
-                    <div className="text-center text-muted-foreground">
-                      <p className="text-lg font-medium">Select a conversation</p>
-                      <p className="text-sm mt-2">
-                        Choose a conversation from the sidebar to start messaging
-                      </p>
-                    </div>
-                  </div>
-                )}
-              </div>
+    <div className="fixed inset-0 flex bg-[#111b21] mt-16">
+      {/* Sidebar */}
+      <div className="w-full md:w-[30%] bg-[#202c33] flex flex-col h-[calc(100vh-4rem)]">
+        {/* Header */}
+        <div className="h-16 p-4 bg-[#202c33] border-b border-[#374045]">
+          <div className="flex items-center justify-between h-full">
+            <h2 className="text-xl font-semibold text-white">Messages</h2>
+            <div className="flex items-center space-x-2">
+              <Button variant="ghost" size="icon" className="text-white" onClick={() => setShowSearch(!showSearch)}>
+                <Search className="h-5 w-5" />
+              </Button>
+              <Button variant="ghost" size="icon" className="text-white">
+                <MoreVertical className="h-5 w-5" />
+              </Button>
+            </div>
+          </div>
+          {showSearch && (
+            <div className="mt-2">
+              <Input
+                type="text"
+                placeholder="Search messages..."
+                value={searchQuery}
+                onChange={(e) => handleSearch(e.target.value)}
+                className="bg-[#2a3942] border-none text-white placeholder:text-[#8696a0]"
+              />
+            </div>
+          )}
+          <div className="mt-2">
+            <UserSearch onUserSelect={handleUserSelect} />
+          </div>
+        </div>
 
-              {/* Mobile Message Placeholder */}
-              <div className="flex md:hidden flex-1 items-center justify-center">
-                <div className="text-center text-muted-foreground p-4">
-                  <p className="text-lg font-medium">Your Messages</p>
-                  <p className="text-sm mt-2">
-                    Select a conversation to view on a larger screen
+        {/* Conversations List */}
+        <ScrollArea className="flex-1">
+          {conversations.map((conversation) => (
+            <div
+              key={conversation.id}
+              onClick={() => {
+                setSelectedConversation(conversation);
+                setSearchQuery(''); // Clear search when selecting a conversation
+                const savedMessages = getMessages(conversation.id);
+                setMessages(savedMessages);
+              }}
+              className={`p-3 hover:bg-[#202c33] cursor-pointer transition-all duration-200 ${
+                selectedConversation?.id === conversation.id
+                  ? "bg-[#2a3942]"
+                  : ""
+              }`}
+            >
+              <div className="flex items-center space-x-3">
+                <div className="relative">
+                  <div className="w-12 h-12 rounded-full bg-[#374045] flex items-center justify-center text-white overflow-hidden">
+                    {conversation.otherUser?.photoURL ? (
+                      <img 
+                        src={conversation.otherUser.photoURL} 
+                        alt={conversation.otherUser.displayName} 
+                        className="w-full h-full object-cover"
+                      />
+                    ) : (
+                      conversation.otherUser?.displayName?.charAt(0) || "U"
+                    )}
+                  </div>
+                  {conversation.otherUser?.isOnline && (
+                    <div className="absolute bottom-0 right-0 w-3 h-3 bg-green-500 rounded-full border-2 border-[#202c33]" />
+                  )}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center justify-between">
+                    <h3 className="text-white font-medium truncate">
+                      {conversation.otherUser?.displayName || "Unknown User"}
+                    </h3>
+                    <span className="text-xs text-[#8696a0]">
+                      {conversation.lastMessageTime ? new Date(conversation.lastMessageTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : ''}
+                    </span>
+                  </div>
+                  <p className="text-sm text-[#8696a0] truncate">
+                    {conversation.lastMessage || "No messages yet"}
                   </p>
                 </div>
               </div>
             </div>
-          </motion.div>
-        </div>
+          ))}
+        </ScrollArea>
+      </div>
+
+      {/* Messages Area */}
+      <div className={`hidden md:flex flex-1 flex-col bg-[#0b141a] h-[calc(100vh-4rem)] ${
+        !selectedConversation ? "items-center justify-center" : ""
+      }`}>
+        {selectedConversation ? (
+          <>
+            {/* Message Header */}
+            <div className="h-16 p-4 bg-[#202c33] border-b border-[#374045]">
+              <div className="flex items-center justify-between h-full">
+                <div className="flex items-center">
+                  <div className="relative">
+                    <div className="w-10 h-10 rounded-full bg-[#374045] flex items-center justify-center text-white mr-3 overflow-hidden">
+                      {selectedConversation.otherUser?.photoURL ? (
+                        <img 
+                          src={selectedConversation.otherUser.photoURL} 
+                          alt={selectedConversation.otherUser.displayName} 
+                          className="w-full h-full object-cover"
+                        />
+                      ) : (
+                        selectedConversation.otherUser?.displayName?.charAt(0) || "U"
+                      )}
+                    </div>
+                    {selectedConversation.otherUser?.isOnline && (
+                      <div className="absolute bottom-0 right-0 w-3 h-3 bg-green-500 rounded-full border-2 border-[#202c33]" />
+                    )}
+                  </div>
+                  <div>
+                    <h3 className="text-white font-medium">
+                      {selectedConversation.otherUser?.displayName || "Unknown User"}
+                    </h3>
+                    <p className="text-sm text-[#8696a0]">
+                      {isTyping ? "typing..." : selectedConversation.otherUser?.headline || "No headline"}
+                    </p>
+                  </div>
+                </div>
+                <div className="flex items-center space-x-2">
+                  <Button 
+                    variant="ghost" 
+                    size="icon" 
+                    className="text-white"
+                    onClick={() => {
+                      setShowSearch(!showSearch);
+                      setSearchQuery('');
+                    }}
+                  >
+                    <Search className="h-5 w-5" />
+                  </Button>
+                  <Button variant="ghost" size="icon" className="text-white">
+                    <MoreVertical className="h-5 w-5" />
+                  </Button>
+                </div>
+              </div>
+            </div>
+
+            {/* Messages */}
+            <ScrollArea className="flex-1">
+              <div className="p-4 space-y-4">
+                {messages.map((message) => (
+                  <div
+                    key={message.id}
+                    className={`flex ${
+                      message.senderId === currentUser.uid ? "justify-end" : "justify-start"
+                    }`}
+                  >
+                    <div className="max-w-[70%]">
+                      {message.replyTo && (
+                        <div className={`mb-1 p-2 rounded-lg ${
+                          message.senderId === currentUser.uid
+                            ? "bg-[#005c4b]/50"
+                            : "bg-[#202c33]/50"
+                        }`}>
+                          <p className="text-sm text-[#8696a0]">
+                            Replying to {message.replyTo.senderId === currentUser.uid ? "you" : selectedConversation.otherUser?.displayName}
+                          </p>
+                          <p className="text-sm truncate">{message.replyTo.text}</p>
+                        </div>
+                      )}
+                      <div
+                        className={`rounded-lg p-3 ${
+                          message.senderId === currentUser.uid
+                            ? "bg-[#005c4b] text-white"
+                            : "bg-[#202c33] text-white"
+                        }`}
+                      >
+                        <p>{message.text}</p>
+                        <div className="flex items-center justify-end mt-1">
+                          <span className="text-xs text-[#8696a0]">
+                            {new Date(message.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                          </span>
+                          {message.senderId === currentUser.uid && (
+                            <span className="ml-1">
+                              {message.status === 'read' ? (
+                                <CheckCheck className="h-4 w-4 text-[#8696a0]" />
+                              ) : message.status === 'delivered' ? (
+                                <CheckCheck className="h-4 w-4 text-[#8696a0]" />
+                              ) : message.status === 'sent' ? (
+                                <Check className="h-4 w-4 text-[#8696a0]" />
+                              ) : (
+                                <span className="animate-spin">⌛</span>
+                              )}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                      {message.reactions && Object.keys(message.reactions).length > 0 && (
+                        <div className="flex flex-wrap gap-1 mt-1">
+                          {Object.entries(message.reactions).map(([userId, reaction]) => (
+                            <TooltipProvider key={userId}>
+                              <Tooltip>
+                                <TooltipTrigger>
+                                  <Badge variant="secondary" className="text-xs">
+                                    {reaction}
+                                  </Badge>
+                                </TooltipTrigger>
+                                <TooltipContent>
+                                  <p>{userId === currentUser?.uid ? "You" : "Other user"}</p>
+                                </TooltipContent>
+                              </Tooltip>
+                            </TooltipProvider>
+                          ))}
+                        </div>
+                      )}
+                      <div className="flex items-center space-x-2 mt-1">
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-6 w-6 text-[#8696a0]"
+                          onClick={() => handleReply(message)}
+                        >
+                          <Reply className="h-4 w-4" />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-6 w-6 text-[#8696a0]"
+                          onClick={() => handleReaction(message.id, "👍")}
+                        >
+                          <ThumbsUp className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+                <div ref={messagesEndRef} />
+              </div>
+            </ScrollArea>
+
+            {/* Message Input */}
+            <div className="h-16 p-4 bg-[#202c33]">
+              {replyTo && (
+                <div className="mb-2 p-2 bg-[#2a3942] rounded-lg flex items-center justify-between">
+                  <div>
+                    <p className="text-sm text-[#8696a0]">
+                      Replying to {replyTo.senderId === currentUser?.uid ? "you" : selectedConversation.otherUser?.displayName}
+                    </p>
+                    <p className="text-sm text-white truncate">{replyTo.text}</p>
+                  </div>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-6 w-6 text-[#8696a0]"
+                    onClick={() => setReplyTo(null)}
+                  >
+                    <X className="h-4 w-4" />
+                  </Button>
+                </div>
+              )}
+              <form onSubmit={handleSendMessage} className="flex items-center space-x-2">
+                <Button type="button" variant="ghost" size="icon" className="text-[#8696a0]">
+                  <Paperclip className="h-5 w-5" />
+                </Button>
+                <Input
+                  type="text"
+                  placeholder="Type a message"
+                  value={newMessage}
+                  onChange={(e) => {
+                    setNewMessage(e.target.value);
+                    handleTyping(e.target.value.length > 0);
+                  }}
+                  onFocus={() => handleTyping(true)}
+                  onBlur={() => handleTyping(false)}
+                  className="flex-1 bg-[#2a3942] border-none text-white placeholder:text-[#8696a0]"
+                />
+                <Button type="button" variant="ghost" size="icon" className="text-[#8696a0]">
+                  <Smile className="h-5 w-5" />
+                </Button>
+                <Button type="submit" size="icon" className="bg-[#00a884] text-white">
+                  <Send className="h-5 w-5" />
+                </Button>
+              </form>
+            </div>
+          </>
+        ) : (
+          <div className="text-center text-[#8696a0]">
+            <p>Select a conversation or start a new one</p>
+          </div>
+        )}
       </div>
     </div>
   );

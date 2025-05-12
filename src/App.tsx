@@ -1,6 +1,5 @@
-
 import React, { useEffect, Suspense } from "react";
-import { Routes, Route, useNavigate } from "react-router-dom";
+import { Routes, Route, useNavigate, useLocation } from "react-router-dom";
 import HomePage from "./pages/HomePage";
 import AboutPage from "./pages/AboutPage";
 import FeaturesPage from "./pages/FeaturesPage";
@@ -14,12 +13,17 @@ import ConnectionRequestsPage from "./pages/ConnectionRequestsPage";
 import MessagesPage from "./pages/MessagesPage";
 import JobsPage from "./pages/JobsPage";
 import SettingsPage from "./pages/SettingsPage";
+import SupportPage from "./pages/SupportPage";
 import NotFound from "./pages/NotFound";
 import Layout from "./components/layout/Layout";
-import { Toaster } from "./components/ui/toaster";
+import { Toaster } from "@/components/ui/toaster";
 import { ThemeProvider } from "./providers/ThemeProvider";
-import { AuthProvider } from "./hooks/use-auth";
+import { AuthProvider } from "./contexts/AuthContext";
 import "./App.css";
+import { useToast } from "@/hooks/use-toast";
+import { auth } from "@/lib/firebase";
+import { onAuthStateChanged } from "firebase/auth";
+import NavbarActions from "@/components/layout/Navbar";
 
 // Simple fallback for errors
 const ErrorFallback = ({ error }: { error: Error }) => {
@@ -87,29 +91,52 @@ const LoadingFallback = () => (
 );
 
 function App() {
+  const navigate = useNavigate();
+  const location = useLocation();
+  const { toast } = useToast();
+
+  useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, (user) => {
+      if (!user && !['/auth', '/about', '/features', '/pricing', '/support'].includes(location.pathname)) {
+        navigate("/auth");
+        toast({
+          title: "Authentication Required",
+          description: "Please sign in to continue",
+          variant: "destructive",
+        });
+      }
+    });
+
+    return () => unsubscribe();
+  }, [navigate, location.pathname, toast]);
+
   return (
     <AppErrorBoundary>
       <ThemeProvider defaultTheme="dark" storageKey="sigma-theme">
         <AuthProvider>
           <Suspense fallback={<LoadingFallback />}>
-            <Routes>
-              <Route element={<Layout />}>
-                <Route path="/" element={<HomePage />} />
-                <Route path="/about" element={<AboutPage />} />
-                <Route path="/features" element={<FeaturesPage />} />
-                <Route path="/pricing" element={<PricingPage />} />
-                <Route path="/auth" element={<AuthPage />} />
-                <Route path="/feed" element={<FeedPage />} />
-                <Route path="/profile" element={<ProfilePage />} />
-                <Route path="/profile/:userId" element={<UserProfilePage />} />
-                <Route path="/network" element={<NetworkPage />} />
-                <Route path="/requests" element={<ConnectionRequestsPage />} />
-                <Route path="/messages" element={<MessagesPage />} />
-                <Route path="/jobs" element={<JobsPage />} />
-                <Route path="/settings" element={<SettingsPage />} />
-                <Route path="*" element={<NotFound />} />
-              </Route>
-            </Routes>
+            <div className={`min-h-screen bg-background ${location.pathname === "/messages" ? "overflow-hidden" : ""}`}>
+              <NavbarActions />
+              <Routes>
+                <Route element={<Layout />}>
+                  <Route path="/" element={<HomePage />} />
+                  <Route path="/about" element={<AboutPage />} />
+                  <Route path="/features" element={<FeaturesPage />} />
+                  <Route path="/pricing" element={<PricingPage />} />
+                  <Route path="/auth" element={<AuthPage />} />
+                  <Route path="/feed" element={<FeedPage />} />
+                  <Route path="/profile" element={<ProfilePage />} />
+                  <Route path="/profile/:userId" element={<UserProfilePage />} />
+                  <Route path="/network" element={<NetworkPage />} />
+                  <Route path="/requests" element={<ConnectionRequestsPage />} />
+                  <Route path="/messages" element={<MessagesPage />} />
+                  <Route path="/jobs" element={<JobsPage />} />
+                  <Route path="/settings" element={<SettingsPage />} />
+                  <Route path="/support" element={<SupportPage />} />
+                  <Route path="*" element={<NotFound />} />
+                </Route>
+              </Routes>
+            </div>
             <Toaster />
           </Suspense>
         </AuthProvider>

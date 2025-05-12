@@ -1,16 +1,32 @@
 import { useState, useEffect } from "react";
-import { Outlet, useNavigate } from "react-router-dom";
+import { Outlet, useNavigate, useLocation } from "react-router-dom";
 import { motion } from "framer-motion";
-import { useAuth } from "@/hooks/use-auth";
+import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
 import Navbar from "./Navbar";
 import Footer from "./Footer";
 
+// Pages that don't require authentication
+const PUBLIC_PAGES = ['/auth', '/about', '/features', '/pricing', '/support'];
+
 const Layout = () => {
-  const { loading } = useAuth();
+  const { currentUser, loading } = useAuth();
   const { toast } = useToast();
   const [error, setError] = useState<Error | null>(null);
   const navigate = useNavigate();
+  const location = useLocation();
+
+  // Handle authentication
+  useEffect(() => {
+    if (!loading && !currentUser && !PUBLIC_PAGES.includes(location.pathname)) {
+      navigate("/auth");
+      toast({
+        title: "Authentication Required",
+        description: "Please sign in to continue",
+        variant: "destructive",
+      });
+    }
+  }, [currentUser, loading, location.pathname, navigate, toast]);
 
   // Clear error state when route changes
   useEffect(() => {
@@ -22,10 +38,10 @@ const Layout = () => {
   // Error handling boundary
   if (error) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-background">
-        <div className="text-center p-6 max-w-md mx-auto">
+      <div className="min-h-screen flex items-center justify-center bg-background p-4">
+        <div className="text-center p-6 max-w-md w-full mx-auto bg-card rounded-lg shadow-lg">
           <h2 className="text-2xl font-bold mb-4 text-red-500">Something went wrong</h2>
-          <p className="mb-4">{error.message || "An unexpected error occurred"}</p>
+          <p className="mb-4 text-muted-foreground">{error.message || "An unexpected error occurred"}</p>
           <div className="space-y-2">
             <button 
               onClick={() => window.location.reload()} 
@@ -48,54 +64,30 @@ const Layout = () => {
     );
   }
 
-  // Loading state
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background">
-        <div className="text-center">
-          <div className="w-16 h-16 border-4 border-sigma-purple border-t-transparent rounded-full animate-spin mx-auto"></div>
-          <p className="mt-4 text-lg">Loading SiGMA Hub...</p>
-        </div>
+        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-[#00a884]"></div>
       </div>
     );
   }
 
-  try {
-    return (
-      <div className="flex flex-col min-h-screen">
-        <Navbar />
-        <motion.main 
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          transition={{ duration: 0.5 }}
-          className="flex-1"
+  return (
+    <div className="min-h-screen bg-background flex flex-col">
+      <Navbar />
+      <main className="flex-1 container mx-auto px-4 py-4 sm:py-8 max-w-7xl">
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.3 }}
+          className="h-full"
         >
           <Outlet />
-        </motion.main>
-        <Footer />
-      </div>
-    );
-  } catch (err) {
-    console.error("Layout render error:", err);
-    const errorMessage = err instanceof Error ? err : new Error("Unknown error occurred");
-    setError(errorMessage as Error);
-    
-    // Return a simple fallback UI
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-background">
-        <div className="text-center p-6">
-          <h2 className="text-2xl font-bold mb-4 text-red-500">Something went wrong</h2>
-          <p className="mb-4">We're sorry, but there was an error loading the page.</p>
-          <button 
-            onClick={() => window.location.reload()} 
-            className="px-4 py-2 bg-sigma-purple text-white rounded-md hover:bg-sigma-blue transition-colors"
-          >
-            Refresh page
-          </button>
-        </div>
-      </div>
-    );
-  }
+        </motion.div>
+      </main>
+      <Footer />
+    </div>
+  );
 };
 
 export default Layout;

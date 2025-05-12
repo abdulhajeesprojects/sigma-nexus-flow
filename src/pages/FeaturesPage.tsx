@@ -1,19 +1,18 @@
-
 import { motion } from "framer-motion";
 import { Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 
 const FeaturesPage = () => {
   return (
-    <div className="min-h-screen pt-20 pb-12 px-4 bg-background">
-      <div className="container mx-auto">
-        <div className="max-w-4xl mx-auto">
+    <div className="min-h-screen pt-20 pb-12 px-2 sm:px-4 bg-background">
+      <div className="w-full sm:container sm:mx-auto">
+        <div className="w-full sm:max-w-4xl sm:mx-auto">
           {/* Hero Section */}
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.5 }}
-            className="text-center mb-12"
+            className="text-center mb-8 sm:mb-12"
           >
             <h1 className="text-4xl font-bold mb-4">
               <span className="bg-clip-text text-transparent bg-gradient-to-r from-sigma-blue to-sigma-purple">
@@ -34,7 +33,7 @@ const FeaturesPage = () => {
           >
             <h2 className="text-2xl font-bold mb-6">Core Platform Features</h2>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 sm:gap-6">
               <div className="flex flex-col">
                 <div className="w-12 h-12 rounded-full bg-sigma-blue/20 flex items-center justify-center text-sigma-blue mb-4">
                   <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-6 h-6">

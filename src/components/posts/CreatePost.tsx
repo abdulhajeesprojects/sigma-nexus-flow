@@ -1,4 +1,3 @@
-
 import { useState } from "react";
 import { motion } from "framer-motion";
 import { Image, Video, Users, Calendar, X } from "lucide-react";
@@ -62,6 +61,11 @@ const CreatePost = ({ onPostCreated }: CreatePostProps) => {
         likedBy: [],
         createdAt: serverTimestamp(),
         updatedAt: serverTimestamp(),
+        author: {
+          displayName: auth.currentUser.displayName || "Unknown User",
+          headline: auth.currentUser.displayName || "",
+          photoURL: auth.currentUser.photoURL || null
+        }
       };
       
       await addDoc(collection(firestore, "posts"), postData);
@@ -103,10 +107,10 @@ const CreatePost = ({ onPostCreated }: CreatePostProps) => {
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.5 }}
-      className="glass-card p-4 mb-6"
+      className="glass-card p-3 sm:p-4 mb-4 sm:mb-6"
     >
-      <div className="flex items-center space-x-3 mb-4">
-        <div className="w-10 h-10 rounded-full bg-sigma-blue/20 flex items-center justify-center text-sigma-blue font-bold">
+      <div className="flex items-center space-x-2 sm:space-x-3 mb-3 sm:mb-4">
+        <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-full bg-sigma-blue/20 flex items-center justify-center text-sigma-blue font-bold">
           {auth.currentUser?.photoURL ? (
             <img src={auth.currentUser.photoURL} alt={auth.currentUser.displayName || ""} className="w-full h-full rounded-full object-cover" />
           ) : (
@@ -118,19 +122,20 @@ const CreatePost = ({ onPostCreated }: CreatePostProps) => {
           <div className="flex-1">
             <Textarea
               placeholder="What's on your mind?"
-              className="w-full resize-none mb-3"
+              className="w-full resize-none mb-2 sm:mb-3"
               value={content}
               onChange={(e) => setContent(e.target.value)}
               rows={3}
             />
             
-            <div className="flex justify-between items-center">
+            <div className="flex flex-col sm:flex-row sm:items-center space-y-2 sm:space-y-0 sm:space-x-2">
               <div className="flex space-x-2">
                 <Button 
                   type="button" 
                   variant="outline" 
                   size="sm"
                   onClick={() => handleShowMediaDialog("image")}
+                  className="w-full sm:w-auto"
                 >
                   <Image className="w-4 h-4 mr-2" />
                   <span>Add Media</span>
@@ -148,6 +153,7 @@ const CreatePost = ({ onPostCreated }: CreatePostProps) => {
                     setImagePreview(null);
                   }}
                   disabled={isSubmitting}
+                  className="flex-1 sm:flex-none"
                 >
                   Cancel
                 </Button>
@@ -155,7 +161,7 @@ const CreatePost = ({ onPostCreated }: CreatePostProps) => {
                   size="sm"
                   onClick={handleCreatePost}
                   disabled={!content.trim() || isSubmitting}
-                  className="bg-gradient-to-r from-sigma-blue to-sigma-purple hover:from-sigma-purple hover:to-sigma-blue text-white"
+                  className="flex-1 sm:flex-none bg-gradient-to-r from-sigma-blue to-sigma-purple hover:from-sigma-purple hover:to-sigma-blue text-white"
                 >
                   {isSubmitting ? "Posting..." : "Post"}
                 </Button>
@@ -164,7 +170,7 @@ const CreatePost = ({ onPostCreated }: CreatePostProps) => {
           </div>
         ) : (
           <div
-            className="bg-secondary/50 dark:bg-secondary/20 rounded-full py-2 px-4 text-muted-foreground flex-1 cursor-pointer hover:bg-secondary/80 dark:hover:bg-secondary/30 transition-colors"
+            className="bg-secondary/50 dark:bg-secondary/20 rounded-full py-2 px-3 sm:px-4 text-muted-foreground flex-1 cursor-pointer hover:bg-secondary/80 dark:hover:bg-secondary/30 transition-colors"
             onClick={() => setIsExpanded(true)}
           >
             What's on your mind?
@@ -173,33 +179,33 @@ const CreatePost = ({ onPostCreated }: CreatePostProps) => {
       </div>
       
       {!isExpanded && (
-        <div className="flex justify-between">
+        <div className="flex justify-between text-xs sm:text-sm">
           <button 
-            className="flex items-center space-x-2 text-sm text-muted-foreground hover:text-foreground transition-colors"
+            className="flex items-center space-x-1 sm:space-x-2 text-muted-foreground hover:text-foreground transition-colors"
             onClick={() => handleShowMediaDialog("image")}
           >
-            <Image className="w-5 h-5" />
+            <Image className="w-4 h-4 sm:w-5 sm:h-5" />
             <span>Photo</span>
           </button>
           <button 
-            className="flex items-center space-x-2 text-sm text-muted-foreground hover:text-foreground transition-colors"
+            className="flex items-center space-x-1 sm:space-x-2 text-muted-foreground hover:text-foreground transition-colors"
             onClick={() => handleShowMediaDialog("video")}
           >
-            <Video className="w-5 h-5" />
+            <Video className="w-4 h-4 sm:w-5 sm:h-5" />
             <span>Video</span>
           </button>
           <button 
-            className="flex items-center space-x-2 text-sm text-muted-foreground hover:text-foreground transition-colors"
+            className="flex items-center space-x-1 sm:space-x-2 text-muted-foreground hover:text-foreground transition-colors"
             onClick={() => setIsExpanded(true)}
           >
-            <Users className="w-5 h-5" />
+            <Users className="w-4 h-4 sm:w-5 sm:h-5" />
             <span>Tag</span>
           </button>
           <button 
-            className="flex items-center space-x-2 text-sm text-muted-foreground hover:text-foreground transition-colors"
+            className="flex items-center space-x-1 sm:space-x-2 text-muted-foreground hover:text-foreground transition-colors"
             onClick={() => setIsExpanded(true)}
           >
-            <Calendar className="w-5 h-5" />
+            <Calendar className="w-4 h-4 sm:w-5 sm:h-5" />
             <span>Event</span>
           </button>
         </div>

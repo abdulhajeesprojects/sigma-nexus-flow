@@ -1,4 +1,3 @@
-
 import { 
   collection, 
   doc, 
@@ -11,32 +10,65 @@ import {
   addDoc, 
   serverTimestamp,
   runTransaction,
-  deleteDoc
+  deleteDoc,
+  getFirestore,
+  orderBy,
+  limit
 } from "firebase/firestore";
 import { ref, uploadBytes, getDownloadURL, deleteObject } from "firebase/storage";
 import { firestore, storage, auth } from "@/lib/firebase";
+import { User } from 'firebase/auth';
+
+const db = getFirestore();
+
+export interface UserProfile {
+  id: string;
+  displayName: string;
+  email: string;
+  photoURL?: string;
+  bio?: string;
+  location?: string;
+  occupation?: string;
+  username: string;
+  createdAt: Date;
+  updatedAt: Date;
+}
 
 // User related operations
-export const createUserProfile = async (userId: string, userData: any) => {
+export const createUserProfile = async (user: User): Promise<void> => {
   try {
-    await setDoc(doc(firestore, "users", userId), {
-      userId,
-      ...userData,
-      createdAt: serverTimestamp(),
-      updatedAt: serverTimestamp()
-    });
-    return true;
+    const userRef = doc(firestore, 'users', user.uid);
+    const userDoc = await getDoc(userRef);
+
+    if (!userDoc.exists()) {
+      // Generate a default username based on display name
+      const defaultUsername = '@' + (user.displayName || 'user').toLowerCase().replace(/[^a-z0-9]/g, '') + Math.floor(Math.random() * 1000);
+      
+      await setDoc(userRef, {
+        id: user.uid,
+        displayName: user.displayName || 'User',
+        email: user.email || '',
+        photoURL: user.photoURL || null,
+        username: defaultUsername,
+        bio: '',
+        location: '',
+        occupation: '',
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp()
+      });
+    }
   } catch (error) {
     console.error("Error creating user profile:", error);
     throw error;
   }
 };
 
-export const updateUserProfile = async (userId: string, userData: any) => {
+export const updateUserProfile = async (userId: string, data: Partial<UserProfile>) => {
   try {
-    await updateDoc(doc(firestore, "users", userId), {
-      ...userData,
-      updatedAt: serverTimestamp()
+    const userRef = doc(db, 'users', userId);
+    await updateDoc(userRef, {
+      ...data,
+      updatedAt: serverTimestamp(),
     });
     return true;
   } catch (error) {
@@ -45,16 +77,13 @@ export const updateUserProfile = async (userId: string, userData: any) => {
   }
 };
 
-export const getUserProfile = async (userId: string) => {
+export const getUserProfile = async (userId: string): Promise<UserProfile> => {
   try {
-    const docRef = doc(firestore, "users", userId);
-    const docSnap = await getDoc(docRef);
-    
-    if (docSnap.exists()) {
-      return { id: docSnap.id, ...docSnap.data() };
-    } else {
-      return null;
+    const userDoc = await getDoc(doc(db, 'users', userId));
+    if (!userDoc.exists()) {
+      throw new Error('User profile not found');
     }
+    return userDoc.data() as UserProfile;
   } catch (error) {
     console.error("Error getting user profile:", error);
     throw error;
@@ -480,20 +509,6 @@ export const getOrCreateConversation = async (userId1: string, userId2: string) 
 
 export const sendMessage = async (conversationId: string, senderId: string, receiverId: string, text: string) => {
   try {
-    // Check if users are connected before allowing messages
-    const connectionQuery = query(
-      collection(firestore, "connections"),
-      where("userId", "==", senderId),
-      where("connectionId", "==", receiverId),
-      where("status", "==", "accepted")
-    );
-    
-    const connectionSnapshot = await getDocs(connectionQuery);
-    
-    if (connectionSnapshot.empty) {
-      throw new Error("You can only send messages to your connections");
-    }
-    
     const result = await runTransaction(firestore, async (transaction) => {
       // Create the message
       const messageRef = doc(collection(firestore, "messages"));
@@ -682,4 +697,57 @@ export const deleteUserAccount = async (userId: string) => {
     console.error("Error deleting user account:", error);
     throw error;
   }
+};
+
+// Add username validation function
+export const validateUsername = (username: string): boolean => {
+  // Username must start with @ and contain only letters, numbers, and underscores
+  const usernameRegex = /^@[a-zA-Z0-9_]+$/;
+  return usernameRegex.test(username);
+};
+
+// Add function to check if username is available
+export const isUsernameAvailable = async (username: string): Promise<boolean> => {
+  const usersRef = collection(firestore, 'users');
+  const q = query(usersRef, where('username', '==', username));
+  const querySnapshot = await getDocs(q);
+  return querySnapshot.empty;
+};
+
+// Add function to search users by username
+export const searchUsersByUsername = async (searchTerm: string): Promise<UserProfile[]> => {
+  if (!searchTerm.startsWith('@')) {
+    searchTerm = '@' + searchTerm;
+  }
+
+  const usersRef = collection(firestore, 'users');
+  const q = query(
+    usersRef,
+    where('username', '>=', searchTerm),
+    where('username', '<=', searchTerm + '\uf8ff'),
+    limit(10)
+  );
+
+  const querySnapshot = await getDocs(q);
+  return querySnapshot.docs.map(doc => ({
+    id: doc.id,
+    ...doc.data()
+  } as UserProfile));
+};
+
+export const updateUsername = async (userId: string, newUsername: string): Promise<void> => {
+  if (!validateUsername(newUsername)) {
+    throw new Error('Invalid username format. Username must start with @ and contain only letters, numbers, and underscores.');
+  }
+
+  const isAvailable = await isUsernameAvailable(newUsername);
+  if (!isAvailable) {
+    throw new Error('Username is already taken.');
+  }
+
+  const userRef = doc(firestore, 'users', userId);
+  await updateDoc(userRef, {
+    username: newUsername,
+    updatedAt: new Date()
+  });
 };

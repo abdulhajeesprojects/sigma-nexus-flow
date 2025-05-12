@@ -1,292 +1,241 @@
-
-import { useState, useEffect } from "react";
-import { useNavigate } from "react-router-dom";
-import { 
-  collection, 
-  query, 
-  orderBy, 
-  limit, 
-  getDocs, 
-  where, 
-  startAfter,
-  QueryDocumentSnapshot, 
-  DocumentData,
-  onSnapshot
-} from "firebase/firestore";
-import { firestore, auth } from "@/lib/firebase";
+import { useState, useEffect, useCallback } from "react";
+import { motion } from "framer-motion";
+import { auth, firestore } from "@/lib/firebase";
+import { collection, query, where, orderBy, limit, startAfter, getDocs, getDoc, doc } from "firebase/firestore";
+import { useToast } from "@/hooks/use-toast";
+import { Button } from "@/components/ui/button";
+import { Loader2 } from "lucide-react";
 import CreatePost from "@/components/posts/CreatePost";
 import PostItem from "@/components/posts/PostItem";
-import { Button } from "@/components/ui/button";
-import { useToast } from "@/hooks/use-toast";
+import { cacheService, CacheService } from "@/services/cache";
 
-interface Post {
-  id: string;
-  userId: string;
-  content: string;
-  imageUrl?: string;
-  likes: number;
-  comments: number;
-  shares: number;
-  createdAt: any;
-  author?: {
-    displayName: string;
-    headline?: string;
-    photoURL?: string;
-  };
+interface UserData {
+  displayName?: string;
+  headline?: string;
+  photoURL?: string;
 }
 
+const POSTS_PER_PAGE = 10;
+const CACHE_DURATION = 5 * 60 * 1000; // 5 minutes
+
 const FeedPage = () => {
-  const [posts, setPosts] = useState<Post[]>([]);
+  const [posts, setPosts] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
-  const [lastVisible, setLastVisible] = useState<QueryDocumentSnapshot<DocumentData> | null>(null);
   const [loadingMore, setLoadingMore] = useState(false);
-  const [noMorePosts, setNoMorePosts] = useState(false);
-  const navigate = useNavigate();
+  const [lastVisible, setLastVisible] = useState<any>(null);
+  const [hasMore, setHasMore] = useState(true);
   const { toast } = useToast();
-  const postsPerPage = 5;
 
-  // Set up real-time listener for posts
-  useEffect(() => {
-    if (!auth.currentUser) {
-      return;
-    }
+  const fetchPosts = useCallback(async (isInitial = false) => {
+    if (!auth.currentUser) return;
+    
+    try {
+      // Check cache first
+      const cachedPosts = cacheService.get<any[]>(CacheService.keys.feed(auth.currentUser.uid));
+      if (cachedPosts && isInitial) {
+        setPosts(cachedPosts);
+        setLoading(false);
+        return;
+      }
 
-    setLoading(true);
-    
-    // Create query for fetching posts in real-time
-    const postsQuery = query(
-      collection(firestore, "posts"),
-      orderBy("createdAt", "desc"),
-      limit(postsPerPage)
-    );
-    
-    // Set up real-time listener
-    const unsubscribe = onSnapshot(postsQuery, async (snapshot) => {
-      try {
-        // Set the last document for pagination
-        const lastVisibleDoc = snapshot.docs[snapshot.docs.length - 1];
-        setLastVisible(lastVisibleDoc);
-        
-        if (snapshot.empty) {
-          setPosts([]);
-          setNoMorePosts(true);
-          setLoading(false);
-          return;
-        }
-        
-        // Get user data for each post
-        const postsWithAuthor = await Promise.all(
-          snapshot.docs.map(async (doc) => {
-            const postData = doc.data() as Omit<Post, 'id'>;
-            const post: Post = { 
-              id: doc.id,
-              userId: postData.userId,
-              content: postData.content,
-              imageUrl: postData.imageUrl,
-              likes: postData.likes,
-              comments: postData.comments,
-              shares: postData.shares,
-              createdAt: postData.createdAt,
-            };
-            
-            // Get author data
+      const postsQuery = query(
+        collection(firestore, "posts"),
+        orderBy("createdAt", "desc"),
+        limit(POSTS_PER_PAGE)
+      );
+
+      const postsSnapshot = await getDocs(postsQuery);
+      
+      if (postsSnapshot.empty) {
+        setPosts([]);
+        setHasMore(false);
+        setLoading(false);
+        return;
+      }
+
+      const lastVisibleDoc = postsSnapshot.docs[postsSnapshot.docs.length - 1];
+      setLastVisible(lastVisibleDoc);
+      setHasMore(postsSnapshot.docs.length === POSTS_PER_PAGE);
+
+      const fetchedPosts = await Promise.all(
+        postsSnapshot.docs.map(async (postDoc) => {
+          const postData = postDoc.data();
+          
+          // Try to get user data from cache first
+          let userData = cacheService.get<UserData>(CacheService.keys.userProfile(postData.userId));
+          
+          if (!userData) {
             try {
-              const userDoc = await getDocs(
-                query(collection(firestore, "users"), where("userId", "==", post.userId))
-              );
-              
-              if (!userDoc.empty) {
-                const userData = userDoc.docs[0].data();
-                post.author = {
-                  displayName: userData.displayName || "Unknown User",
-                  headline: userData.headline || "",
-                  photoURL: userData.photoURL || null
-                };
+              const userDoc = await getDoc(doc(firestore, "users", postData.userId));
+              if (userDoc.exists()) {
+                userData = userDoc.data() as UserData;
+                // Cache user data
+                cacheService.set(CacheService.keys.userProfile(postData.userId), userData);
               }
             } catch (error) {
-              console.error("Error fetching user data for post:", error);
+              console.error("Error fetching user data:", error);
             }
-            
-            return post;
-          })
-        );
-        
-        setPosts(postsWithAuthor);
-      } catch (error) {
-        console.error("Error in posts listener:", error);
-        toast({
-          title: "Error",
-          description: "Could not load posts. Please try again later.",
-          variant: "destructive",
-        });
-      } finally {
-        setLoading(false);
+          }
+
+          return {
+            id: postDoc.id,
+            ...postData,
+            author: userData ? {
+              displayName: userData.displayName || "User",
+              headline: userData.headline || "",
+              photoURL: userData.photoURL
+            } : {
+              displayName: "User",
+              headline: "",
+              photoURL: undefined
+            }
+          };
+        })
+      );
+
+      if (isInitial) {
+        setPosts(fetchedPosts);
+        // Cache posts
+        cacheService.set(CacheService.keys.feed(auth.currentUser.uid), fetchedPosts, CACHE_DURATION);
+      } else {
+        setPosts(prev => [...prev, ...fetchedPosts]);
       }
-    }, (error) => {
-      console.error("Posts subscription error:", error);
-      setLoading(false);
+    } catch (error) {
+      console.error("Error fetching posts:", error);
       toast({
         title: "Error",
-        description: "Could not subscribe to posts feed.",
+        description: "Failed to load posts",
         variant: "destructive",
       });
-    });
-
-    return () => unsubscribe();
+    } finally {
+      setLoading(false);
+      setLoadingMore(false);
+    }
   }, [toast]);
 
-  const fetchMorePosts = async () => {
-    if (!lastVisible || loadingMore || noMorePosts) return;
-
+  const loadMore = useCallback(async () => {
+    if (!hasMore || loadingMore || !lastVisible) return;
+    
+    setLoadingMore(true);
+    
     try {
-      setLoadingMore(true);
-      
       const postsQuery = query(
         collection(firestore, "posts"),
         orderBy("createdAt", "desc"),
         startAfter(lastVisible),
-        limit(postsPerPage)
+        limit(POSTS_PER_PAGE)
       );
-      
+
       const postsSnapshot = await getDocs(postsQuery);
       
       if (postsSnapshot.empty) {
-        setNoMorePosts(true);
+        setHasMore(false);
+        setLoadingMore(false);
         return;
       }
-      
-      // Set the last document for pagination
+
       const lastVisibleDoc = postsSnapshot.docs[postsSnapshot.docs.length - 1];
       setLastVisible(lastVisibleDoc);
-      
-      // Get user data for each post
-      const morePosts = await Promise.all(
-        postsSnapshot.docs.map(async (doc) => {
-          const postData = doc.data() as Omit<Post, 'id'>;
-          const post: Post = { 
-            id: doc.id,
-            userId: postData.userId,
-            content: postData.content,
-            imageUrl: postData.imageUrl,
-            likes: postData.likes,
-            comments: postData.comments,
-            shares: postData.shares,
-            createdAt: postData.createdAt,
-          };
+      setHasMore(postsSnapshot.docs.length === POSTS_PER_PAGE);
+
+      const fetchedPosts = await Promise.all(
+        postsSnapshot.docs.map(async (postDoc) => {
+          const postData = postDoc.data();
           
-          // Get author data
-          try {
-            const userDoc = await getDocs(
-              query(collection(firestore, "users"), where("userId", "==", post.userId))
-            );
-            
-            if (!userDoc.empty) {
-              const userData = userDoc.docs[0].data();
-              post.author = {
-                displayName: userData.displayName || "Unknown User",
-                headline: userData.headline || "",
-                photoURL: userData.photoURL || null
-              };
+          // Try to get user data from cache first
+          let userData = cacheService.get<UserData>(CacheService.keys.userProfile(postData.userId));
+          
+          if (!userData) {
+            try {
+              const userDoc = await getDoc(doc(firestore, "users", postData.userId));
+              if (userDoc.exists()) {
+                userData = userDoc.data() as UserData;
+                // Cache user data
+                cacheService.set(CacheService.keys.userProfile(postData.userId), userData);
+              }
+            } catch (error) {
+              console.error("Error fetching user data:", error);
             }
-          } catch (error) {
-            console.error("Error fetching user data for post:", error);
           }
-          
-          return post;
+
+          return {
+            id: postDoc.id,
+            ...postData,
+            author: userData ? {
+              displayName: userData.displayName || "User",
+              headline: userData.headline || "",
+              photoURL: userData.photoURL
+            } : {
+              displayName: "User",
+              headline: "",
+              photoURL: undefined
+            }
+          };
         })
       );
-      
-      setPosts(prev => [...prev, ...morePosts]);
+
+      setPosts(prev => [...prev, ...fetchedPosts]);
     } catch (error) {
       console.error("Error loading more posts:", error);
       toast({
         title: "Error",
-        description: "Could not load more posts. Please try again later.",
+        description: "Failed to load more posts",
         variant: "destructive",
       });
     } finally {
       setLoadingMore(false);
     }
-  };
+  }, [hasMore, lastVisible, loadingMore, toast]);
 
-  // Check authentication status
+  const refreshPosts = useCallback(() => {
+    cacheService.delete(CacheService.keys.feed(auth.currentUser?.uid || ""));
+    fetchPosts(true);
+  }, [fetchPosts]);
+
   useEffect(() => {
-    const unsubscribe = auth.onAuthStateChanged((user) => {
-      if (!user) {
-        navigate("/auth");
-      }
-    });
-
-    return () => unsubscribe();
-  }, [navigate]);
-
-  const handleRefreshPosts = () => {
-    // The real-time listener will handle updates automatically
-    // This is just for manual refresh if needed
-    toast({
-      title: "Feed refreshed",
-      description: "Your feed has been updated with the latest posts"
-    });
-  };
-
-  if (loading) {
-    return (
-      <div className="min-h-screen pt-20 px-4 bg-background">
-        <div className="container mx-auto max-w-4xl">
-          <div className="space-y-4">
-            {[...Array(3)].map((_, i) => (
-              <div
-                key={i}
-                className="glass-card p-6 h-64 animate-pulse"
-              ></div>
-            ))}
-          </div>
-        </div>
-      </div>
-    );
-  }
+    fetchPosts(true);
+  }, [fetchPosts]);
 
   return (
-    <div className="min-h-screen pt-20 px-4 bg-background">
-      <div className="container mx-auto">
-        <div className="max-w-4xl mx-auto">
-          {/* Create Post */}
-          <CreatePost onPostCreated={handleRefreshPosts} />
-
-          {/* Posts */}
-          {posts.length > 0 ? (
-            <div className="space-y-6">
-              {posts.map((post) => (
-                <PostItem key={post.id} post={post} refreshPosts={handleRefreshPosts} />
-              ))}
-              
-              {!noMorePosts && (
-                <div className="flex justify-center pb-6">
-                  <Button
-                    onClick={fetchMorePosts}
-                    disabled={loadingMore}
-                    variant="outline"
-                  >
-                    {loadingMore ? "Loading..." : "Load More"}
-                  </Button>
-                </div>
-              )}
-            </div>
-          ) : (
-            <div className="glass-card p-6 text-center">
-              <h3 className="font-semibold mb-2">No posts yet</h3>
-              <p className="text-muted-foreground mb-4">
-                Be the first to share something with your network!
-              </p>
-              <Button 
-                onClick={() => document.querySelector<HTMLElement>(".glass-card:first-child")?.click()}
-                className="bg-gradient-to-r from-sigma-blue to-sigma-purple hover:from-sigma-purple hover:to-sigma-blue text-white"
-              >
-                Create a Post
-              </Button>
-            </div>
-          )}
-        </div>
+    <div className="w-full sm:max-w-2xl sm:mx-auto py-2 sm:py-8 px-0 sm:px-4">
+      <CreatePost onPostCreated={refreshPosts} />
+      
+      <div className="mt-2 sm:mt-8 space-y-3 sm:space-y-6">
+        {loading ? (
+          <div className="flex justify-center items-center py-8">
+            <Loader2 className="h-8 w-8 animate-spin text-sigma-purple" />
+          </div>
+        ) : posts.length > 0 ? (
+          <>
+            {posts.map((post) => (
+              <PostItem key={post.id} post={post} refreshPosts={refreshPosts} />
+            ))}
+            
+            {hasMore && (
+              <div className="flex justify-center mt-4 sm:mt-6">
+                <Button
+                  variant="outline"
+                  onClick={loadMore}
+                  disabled={loadingMore}
+                  className="w-full sm:w-auto"
+                >
+                  {loadingMore ? (
+                    <>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      Loading more...
+                    </>
+                  ) : (
+                    "Load more"
+                  )}
+                </Button>
+              </div>
+            )}
+          </>
+        ) : (
+          <div className="text-center py-8 text-muted-foreground">
+            No posts yet. Be the first to share something!
+          </div>
+        )}
       </div>
     </div>
   );

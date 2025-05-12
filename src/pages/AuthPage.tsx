@@ -1,170 +1,172 @@
-
 import { useState, useEffect } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
-import { motion, AnimatePresence } from "framer-motion";
-import { auth } from "@/lib/firebase";
-import SignInForm from "@/components/auth/SignInForm";
-import SignUpForm from "@/components/auth/SignUpForm";
+import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 const AuthPage = () => {
-  const [isSignUp, setIsSignUp] = useState(false);
-  const [loading, setLoading] = useState(true);
+  const [isLoading, setIsLoading] = useState(false);
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [name, setName] = useState("");
+  const { signIn, signUp, currentUser } = useAuth();
+  const { toast } = useToast();
   const navigate = useNavigate();
   const location = useLocation();
-  const { toast } = useToast();
 
   useEffect(() => {
-    // Check if the URL has a signup parameter
-    const searchParams = new URLSearchParams(location.search);
-    if (searchParams.get("signup") === "true") {
-      setIsSignUp(true);
-    }
-
-    // Check if the user is already authenticated
-    const unsubscribe = auth.onAuthStateChanged((user) => {
-      if (user) {
-        // User is signed in, redirect to feed
-        toast({
-          title: "Already signed in",
-          description: "You're already logged in to your account",
-        });
+    if (currentUser) {
+      // Only redirect to feed if we're on the auth page
+      if (location.pathname === "/auth") {
         navigate("/feed");
       }
-      setLoading(false);
-    });
+    }
+  }, [currentUser, location.pathname, navigate]);
 
-    return () => unsubscribe();
-  }, [location.search, navigate, toast]);
+  const handleSignIn = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setIsLoading(true);
+    try {
+      await signIn(email, password);
+      toast({
+        title: "Welcome back!",
+        description: "You have successfully signed in.",
+      });
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: error instanceof Error ? error.message : "Failed to sign in",
+        variant: "destructive",
+      });
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
-  if (loading) {
+  const handleSignUp = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setIsLoading(true);
+    try {
+      await signUp(email, password, name);
+      toast({
+        title: "Welcome!",
+        description: "Your account has been created successfully.",
+      });
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: error instanceof Error ? error.message : "Failed to create account",
+        variant: "destructive",
+      });
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  if (isLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background">
-        <div className="text-center">
-          <div className="w-16 h-16 border-4 border-sigma-purple border-t-transparent rounded-full animate-spin mx-auto"></div>
-          <p className="mt-4 text-lg">Loading...</p>
-        </div>
+        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-[#00a884]"></div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-background">
-      <div className="container mx-auto px-4 py-16 flex flex-col md:flex-row">
-        {/* Left Side - Branding/Info */}
-        <div className="w-full md:w-1/2 mb-10 md:mb-0 md:pr-10">
-          <motion.div
-            initial={{ opacity: 0, x: -20 }}
-            animate={{ opacity: 1, x: 0 }}
-            transition={{ duration: 0.5 }}
-            className="max-w-md mx-auto md:ml-0 md:mr-auto"
-          >
-            <h1 className="text-3xl md:text-4xl lg:text-5xl font-bold mb-6">
-              <span className="bg-clip-text text-transparent bg-gradient-to-r from-sigma-blue to-sigma-purple dark:from-sigma-purple dark:to-sigma-blue">
-                SiGMA Hub
-              </span>
-            </h1>
-            <p className="text-2xl font-bold mb-4">
-              {isSignUp ? "Join the network" : "Welcome back"}
-            </p>
-            <p className="text-muted-foreground mb-8">
-              {isSignUp
-                ? "Create your professional profile and connect with opportunities worldwide."
-                : "Sign in to access your personalized feed, messages, and connections."}
-            </p>
-
-            <div className="space-y-6">
-              <div className="flex items-center space-x-4">
-                <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center text-primary">
-                  <svg
-                    xmlns="http://www.w3.org/2000/svg"
-                    fill="none"
-                    viewBox="0 0 24 24"
-                    strokeWidth={1.5}
-                    stroke="currentColor"
-                    className="w-5 h-5"
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
-                    />
-                  </svg>
+    <div className="min-h-screen flex items-center justify-center bg-background p-4">
+      <Card className="w-full max-w-md">
+        <CardHeader>
+          <CardTitle className="text-2xl font-bold text-center">Welcome to SiGMA Hub</CardTitle>
+          <CardDescription className="text-center">
+            Sign in to your account or create a new one
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <Tabs defaultValue="signin" className="w-full">
+            <TabsList className="grid w-full grid-cols-2">
+              <TabsTrigger value="signin">Sign In</TabsTrigger>
+              <TabsTrigger value="signup">Sign Up</TabsTrigger>
+            </TabsList>
+            <TabsContent value="signin">
+              <form onSubmit={handleSignIn} className="space-y-4">
+                <div className="space-y-2">
+                  <Label htmlFor="email">Email</Label>
+                  <Input
+                    id="email"
+                    type="email"
+                    placeholder="Enter your email"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    required
+                  />
                 </div>
-                <div>
-                  <p className="font-medium">Personalized Smart Feed</p>
-                  <p className="text-sm text-muted-foreground">
-                    Content tailored to your professional interests
-                  </p>
+                <div className="space-y-2">
+                  <Label htmlFor="password">Password</Label>
+                  <Input
+                    id="password"
+                    type="password"
+                    placeholder="Enter your password"
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    required
+                  />
                 </div>
-              </div>
-
-              <div className="flex items-center space-x-4">
-                <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center text-primary">
-                  <svg
-                    xmlns="http://www.w3.org/2000/svg"
-                    fill="none"
-                    viewBox="0 0 24 24"
-                    strokeWidth={1.5}
-                    stroke="currentColor"
-                    className="w-5 h-5"
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
-                    />
-                  </svg>
+                <Button type="submit" className="w-full" disabled={isLoading}>
+                  {isLoading ? "Signing in..." : "Sign In"}
+                </Button>
+              </form>
+            </TabsContent>
+            <TabsContent value="signup">
+              <form onSubmit={handleSignUp} className="space-y-4">
+                <div className="space-y-2">
+                  <Label htmlFor="name">Name</Label>
+                  <Input
+                    id="name"
+                    type="text"
+                    placeholder="Enter your name"
+                    value={name}
+                    onChange={(e) => setName(e.target.value)}
+                    required
+                  />
                 </div>
-                <div>
-                  <p className="font-medium">Real-time Messaging</p>
-                  <p className="text-sm text-muted-foreground">
-                    Connect instantly with professionals worldwide
-                  </p>
+                <div className="space-y-2">
+                  <Label htmlFor="signup-email">Email</Label>
+                  <Input
+                    id="signup-email"
+                    type="email"
+                    placeholder="Enter your email"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    required
+                  />
                 </div>
-              </div>
-
-              <div className="flex items-center space-x-4">
-                <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center text-primary">
-                  <svg
-                    xmlns="http://www.w3.org/2000/svg"
-                    fill="none"
-                    viewBox="0 0 24 24"
-                    strokeWidth={1.5}
-                    stroke="currentColor"
-                    className="w-5 h-5"
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
-                    />
-                  </svg>
+                <div className="space-y-2">
+                  <Label htmlFor="signup-password">Password</Label>
+                  <Input
+                    id="signup-password"
+                    type="password"
+                    placeholder="Create a password"
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    required
+                  />
                 </div>
-                <div>
-                  <p className="font-medium">Advanced Job Matching</p>
-                  <p className="text-sm text-muted-foreground">
-                    Find opportunities that perfectly align with your skills
-                  </p>
-                </div>
-              </div>
-            </div>
-          </motion.div>
-        </div>
-
-        {/* Right Side - Auth Forms */}
-        <div className="w-full md:w-1/2">
-          <div className="max-w-md mx-auto glass-card p-8">
-            <AnimatePresence mode="wait">
-              {isSignUp ? (
-                <SignUpForm key="signup" onSwitch={() => setIsSignUp(false)} />
-              ) : (
-                <SignInForm key="signin" onSwitch={() => setIsSignUp(true)} />
-              )}
-            </AnimatePresence>
-          </div>
-        </div>
-      </div>
+                <Button type="submit" className="w-full" disabled={isLoading}>
+                  {isLoading ? "Creating account..." : "Sign Up"}
+                </Button>
+              </form>
+            </TabsContent>
+          </Tabs>
+        </CardContent>
+        <CardFooter className="flex justify-center">
+          <p className="text-sm text-muted-foreground">
+            By continuing, you agree to our Terms of Service and Privacy Policy
+          </p>
+        </CardFooter>
+      </Card>
     </div>
   );
 };

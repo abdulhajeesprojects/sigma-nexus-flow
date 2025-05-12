@@ -1,4 +1,3 @@
-
 import { useRef } from "react";
 import { Link } from "react-router-dom";
 import { motion, useScroll, useTransform } from "framer-motion";
@@ -39,8 +38,8 @@ const HomePage = () => {
           <div className="absolute inset-0 bg-grid-pattern opacity-[0.03]" />
         </div>
 
-        <div className="container mx-auto px-4 py-20 relative z-10">
-          <div className="max-w-screen-lg mx-auto">
+        <div className="w-full sm:container sm:mx-auto px-2 sm:px-4 py-12 sm:py-20 relative z-10">
+          <div className="w-full sm:max-w-screen-lg sm:mx-auto">
             <motion.div
               ref={heroRef}
               style={{ y, opacity }}

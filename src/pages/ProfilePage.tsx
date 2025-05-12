@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
@@ -121,15 +120,15 @@ const ProfilePage = () => {
   }
 
   return (
-    <div className="min-h-screen pt-20 pb-12 px-4 bg-background">
-      <div className="container mx-auto">
-        <div className="max-w-4xl mx-auto">
+    <div className="min-h-screen pt-20 pb-12 px-2 sm:px-4 bg-background">
+      <div className="w-full sm:container sm:mx-auto">
+        <div className="w-full sm:max-w-4xl sm:mx-auto">
           {/* Profile Header */}
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.5 }}
-            className="glass-card p-8 mb-6 relative"
+            className="glass-card p-3 sm:p-8 mb-4 sm:mb-6 relative"
           >
             {/* Cover Image */}
             <div className="h-32 md:h-48 -mx-8 -mt-8 mb-16 bg-gradient-to-r from-sigma-blue/80 to-sigma-purple/80 rounded-t-xl"></div>

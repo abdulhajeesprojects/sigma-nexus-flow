@@ -1,10 +1,9 @@
-
 import React, { useState } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import DefaultProfileSelector from "@/components/profile/DefaultProfileSelector";
-import { useAuth } from "@/hooks/use-auth";
+import { useAuth } from '@/contexts/AuthContext';
 import { Camera } from "lucide-react";
 
 interface ProfileImageSelectionProps {

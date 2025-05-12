@@ -1,4 +1,3 @@
-
 import { 
   createUserWithEmailAndPassword, 
   signInWithEmailAndPassword, 
@@ -24,17 +23,7 @@ export const signUp = async (email: string, password: string, displayName: strin
       await updateProfile(user, { displayName });
       
       // Create user profile in Firestore
-      await createUserProfile(user.uid, {
-        userId: user.uid,
-        displayName,
-        email,
-        photoURL: null,
-        headline: "",
-        location: "",
-        bio: "",
-        connectionCount: 0,
-        createdAt: new Date(),
-      });
+      await createUserProfile(user);
       
       // Set user presence in Realtime Database
       const userStatusRef = ref(database, `status/${user.uid}`);
