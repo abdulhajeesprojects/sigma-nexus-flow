@@ -1,7 +1,7 @@
 
 import React, { useState } from 'react';
 import { motion } from 'framer-motion';
-import defaultProfileImages from '@/lib/defaultProfileImages';
+import { defaultProfileImages } from '@/lib/defaultProfileImages';
 import { Button } from '@/components/ui/button';
 import { updateUserProfile } from '@/services/firestore';
 import { useToast } from '@/hooks/use-toast';
