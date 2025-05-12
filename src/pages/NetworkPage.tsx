@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
 import { useNavigate } from "react-router-dom";
@@ -7,7 +6,7 @@ import { firestore, auth } from "@/lib/firebase";
 import { Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
-import { sendConnectionRequest, getAllUsers } from "@/services/firestore";
+import { sendConnectionRequest } from "@/services/firestore";
 import { UserPlus, Check, X } from "lucide-react";
 
 interface Connection {
@@ -398,6 +397,28 @@ const NetworkPage = () => {
       </div>
     </div>
   );
+};
+
+// Add a getAllUsers implementation
+const getAllUsers = async () => {
+  try {
+    const usersSnapshot = await getDocs(
+      query(collection(firestore, "users"), 
+      where("id", "!=", auth.currentUser?.uid || ""),
+      limit(50))
+    );
+    
+    return usersSnapshot.docs.map((doc) => ({
+      id: doc.id,
+      userId: doc.id, // Add the userId property which is the same as id
+      displayName: doc.data().displayName || "User",
+      headline: doc.data().headline || "",
+      photoURL: doc.data().photoURL || null,
+    }));
+  } catch (error) {
+    console.error("Error getting all users:", error);
+    throw error;
+  }
 };
 
 export default NetworkPage;

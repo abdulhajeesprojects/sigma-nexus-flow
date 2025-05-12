@@ -1,605 +1,463 @@
-
-import { useState, useEffect, useRef } from "react";
-import { useNavigate, useSearchParams } from "react-router-dom";
+import React, { useState, useEffect, useRef } from 'react';
+import { useNavigate, useSearchParams } from 'react-router-dom';
+import { motion } from 'framer-motion';
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { useToast } from "@/hooks/use-toast";
+import { Card, CardContent } from "@/components/ui/card";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Message } from "@/types/message";
-import { Conversation } from "@/types/conversation";
-import { getMessages, getConversations, saveMessages, saveConversations } from "@/services/localStorage";
-import { UserSearch } from '@/components/messages/UserSearch';
-import { Check, CheckCheck, Search, Send, MoreVertical, Paperclip, Smile, X, Reply, ThumbsUp } from "lucide-react";
-import gsap from "gsap";
-import { ScrollTrigger } from "gsap/ScrollTrigger";
-import { useAuth } from '@/contexts/AuthContext';
-import Pusher from 'pusher-js';
-import ChannelSubscription from '@/components/messages/ChannelSubscription';
-import { Badge } from "@/components/ui/badge";
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
-import { GlassCard } from "@/components/ui/glass-card";
-import { writeBatch, doc, collection, addDoc, updateDoc, serverTimestamp, getDoc } from "firebase/firestore";
+import { useAuth } from "@/contexts/AuthContext";
+import { getOrCreateConversation, sendMessage } from "@/services/firestore";
+import { getAvatarForUser } from "@/services/avatars";
+import { useToast } from "@/hooks/use-toast";
+import { format } from 'date-fns';
+import {
+  collection,
+  query,
+  where,
+  orderBy,
+  onSnapshot,
+  doc,
+  updateDoc,
+  getDocs,
+  serverTimestamp,
+  writeBatch, // Fix the batch issue by using writeBatch instead of batch
+} from "firebase/firestore";
 import { firestore } from "@/lib/firebase";
+import { Message } from "@/types/message";
+// Fix the conversation type import
+import { Conversation } from "@/types/conversation";
+import { getConversations, saveConversations, saveMessage, getMessages, syncMessages } from "@/services/localStorage";
+import { Link } from 'react-router-dom';
+import { Send } from 'lucide-react';
 
-gsap.registerPlugin(ScrollTrigger);
+const MessageBubble = ({ message, isOwnMessage }: { message: Message; isOwnMessage: boolean }) => {
+  const formattedTime = format(new Date(message.timestamp), 'h:mm a');
 
-// Initialize Pusher
-const pusherInstance = new Pusher('85a86b13a7f1b409249e', {
-  cluster: 'ap2',
-  enabledTransports: ['ws', 'wss'],
-  forceTLS: true
-});
+  return (
+    <div className={`flex ${isOwnMessage ? 'justify-end' : 'justify-start'} mb-2`}>
+      <div className={`rounded-xl px-4 py-2 ${isOwnMessage ? 'bg-sigma-blue text-white' : 'bg-gray-100 text-gray-800'}`}>
+        <p className="text-sm">{message.text}</p>
+        <p className="text-xs text-right">{formattedTime}</p>
+      </div>
+    </div>
+  );
+};
 
-// Store the instance globally
-if (typeof window !== 'undefined') {
-  (window as any).pusher = pusherInstance;
-}
+const ConversationItem = ({ conversation, currentUserId, onSelect }: {
+  conversation: Conversation;
+  currentUserId: string;
+  onSelect: (conversationId: string) => void;
+}) => {
+  const otherUser = conversation.otherUser;
+  const avatarUrl = getAvatarForUser(otherUser.id, 'professional', 'male'); // Customize as needed
+
+  return (
+    <button
+      onClick={() => onSelect(conversation.id)}
+      className="flex items-center space-x-3 p-3 rounded-lg hover:bg-secondary transition-colors w-full"
+    >
+      <Avatar>
+        <AvatarImage src={avatarUrl} alt={otherUser.displayName} />
+        <AvatarFallback>{otherUser.displayName.charAt(0)}</AvatarFallback>
+      </Avatar>
+      <div>
+        <p className="font-medium">{otherUser.displayName}</p>
+        <p className="text-sm text-muted-foreground">{conversation.lastMessage}</p>
+      </div>
+    </button>
+  );
+};
 
 const MessagesPage = () => {
   const [conversations, setConversations] = useState<Conversation[]>([]);
-  const [selectedConversation, setSelectedConversation] = useState<Conversation | null>(null);
+  const [selectedConversationId, setSelectedConversationId] = useState<string | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
   const [newMessage, setNewMessage] = useState('');
-  const [isLoading, setIsLoading] = useState(true);
-  const [isTyping, setIsTyping] = useState(false);
-  const [replyTo, setReplyTo] = useState<Message | null>(null);
-  const [searchQuery, setSearchQuery] = useState('');
-  const [showSearch, setShowSearch] = useState(false);
-  const messagesEndRef = useRef<HTMLDivElement>(null);
-  const { toast } = useToast();
-  const navigate = useNavigate();
+  const [loading, setLoading] = useState(true);
+  const [sending, setSending] = useState(false);
   const [searchParams] = useSearchParams();
   const { currentUser } = useAuth();
+  const { toast } = useToast();
+  const navigate = useNavigate();
+  const messagesEndRef = useRef<HTMLDivElement>(null);
 
-  // Load conversations and messages from localStorage
   useEffect(() => {
-    if (currentUser) {
-      const savedConversations = getConversations();
-      setConversations(savedConversations);
-      setIsLoading(false);
-    }
-  }, [currentUser]);
+    const checkAuth = auth.onAuthStateChanged((user) => {
+      if (!user) {
+        navigate("/auth");
+      }
+    });
 
-  // Load messages when a conversation is selected
+    return () => checkAuth();
+  }, [navigate]);
+
   useEffect(() => {
-    if (selectedConversation) {
-      const savedMessages = getMessages(selectedConversation.id);
-      setMessages(savedMessages);
-    }
-  }, [selectedConversation]);
+    const scrollToBottom = () => {
+      messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    };
 
-  // Subscribe to messages when a conversation is selected
+    scrollToBottom();
+  }, [messages]);
+
   useEffect(() => {
-    if (selectedConversation) {
-      try {
-        const channel = pusherInstance.subscribe(selectedConversation.id);
-        channel.bind('client-new-message', (data: Message) => {
-          const updatedMessages = [...messages, data];
-          setMessages(updatedMessages);
-          
-          // Update conversation list with new message
-          const updatedConversations = conversations.map(conv => 
-            conv.id === selectedConversation.id 
-              ? { ...conv, lastMessage: data.text, lastMessageTime: data.timestamp.toISOString() }
-              : conv
-          ) as Conversation[];
-          setConversations(updatedConversations);
-          
-          // Save updated messages to localStorage
-          saveMessages(selectedConversation.id, updatedMessages);
-          saveConversations(updatedConversations);
-        });
+    const fetchInitialConversation = async () => {
+      const userId = searchParams.get('user');
+      if (userId && currentUser) {
+        try {
+          const conversation = await getOrCreateConversation(currentUser.uid, userId);
+          setSelectedConversationId(conversation.id);
+        } catch (error) {
+          console.error("Error fetching or creating conversation:", error);
+          toast({
+            title: "Error",
+            description: "Failed to load conversation",
+            variant: "destructive",
+          });
+        }
+      }
+    };
 
-        return () => {
-          channel.unbind_all();
-          pusherInstance.unsubscribe(selectedConversation.id);
+    fetchInitialConversation();
+  }, [searchParams, currentUser, toast]);
+
+  useEffect(() => {
+    if (!currentUser) return;
+
+    // Load conversations from local storage
+    const loadConversationsFromLocalStorage = () => {
+      // Convert conversations from localStorage to match the required type
+      const conversationsList = getConversations();
+      setConversations(conversationsList.map(conv => ({
+        ...conv,
+        lastMessage: conv.lastMessage || "",
+        lastMessageTime: conv.lastMessageTime ? new Date(conv.lastMessageTime) : new Date(),
+        unreadCount: conv.unreadCount || 0
+      })));
+    };
+
+    loadConversationsFromLocalStorage();
+
+    // Set up Firestore listener for conversations
+    const conversationsQuery = query(
+      collection(firestore, "conversations"),
+      where("participants", "array-contains", currentUser.uid),
+      orderBy("lastMessageTime", "desc")
+    );
+
+    const unsubscribeConversations = onSnapshot(conversationsQuery, (snapshot) => {
+      const updatedConversations: Conversation[] = snapshot.docs.map(doc => {
+        const data = doc.data();
+        const otherUserId = data.participants.find(uid => uid !== currentUser.uid);
+
+        return {
+          id: doc.id,
+          participants: data.participants,
+          lastMessage: data.lastMessage,
+          lastMessageTime: data.lastMessageTime?.toDate(),
+          unreadCount: 0, // You might want to calculate this based on messages
+          otherUser: {
+            id: otherUserId,
+            displayName: '',
+            photoURL: null,
+            headline: '',
+            isOnline: false,
+          },
         };
+      });
+
+      // Fetch other user details and update conversations
+      Promise.all(
+        updatedConversations.map(async (conversation) => {
+          const otherUserId = conversation.participants.find(uid => uid !== currentUser.uid);
+          const userDoc = await firestore.collection("users").doc(otherUserId).get();
+          const userData = userDoc.data();
+
+          return {
+            ...conversation,
+            otherUser: {
+              id: otherUserId,
+              displayName: userData?.displayName || 'Unknown User',
+              photoURL: userData?.photoURL || null,
+              headline: userData?.headline || '',
+              isOnline: false,
+            },
+          };
+        })
+      ).then(conversationsWithUserDetails => {
+        setConversations(conversationsWithUserDetails);
+        saveConversations(conversationsWithUserDetails);
+        setLoading(false);
+      });
+    }, (error) => {
+      console.error("Error fetching conversations:", error);
+      toast({
+        title: "Error",
+        description: "Failed to load conversations",
+        variant: "destructive",
+      });
+      setLoading(false);
+    });
+
+    return () => {
+      unsubscribeConversations();
+    };
+  }, [currentUser, toast]);
+
+  useEffect(() => {
+    if (!currentUser || !selectedConversationId) return;
+
+    // Load messages from local storage
+    const loadMessagesFromLocalStorage = () => {
+      const storedMessages = getMessages(selectedConversationId);
+      setMessages(storedMessages);
+    };
+
+    loadMessagesFromLocalStorage();
+
+    // Set up Firestore listener for messages
+    const messagesQuery = query(
+      collection(firestore, "messages"),
+      where("conversationId", "==", selectedConversationId),
+      orderBy("timestamp", "asc")
+    );
+
+    const unsubscribeMessages = onSnapshot(messagesQuery, (snapshot) => {
+      const firebaseMessages: Message[] = snapshot.docs.map(doc => ({
+        id: doc.id,
+        conversationId: doc.data().conversationId,
+        senderId: doc.data().senderId,
+        receiverId: doc.data().receiverId,
+        text: doc.data().text,
+        timestamp: doc.data().timestamp?.toDate(),
+        read: doc.data().read,
+      }));
+
+      // Sync messages with local storage
+      const mergedMessages = syncMessages(selectedConversationId, firebaseMessages);
+      setMessages(mergedMessages);
+    }, (error) => {
+      console.error("Error fetching messages:", error);
+      toast({
+        title: "Error",
+        description: "Failed to load messages",
+        variant: "destructive",
+      });
+    });
+
+    // Mark messages as read when the conversation is selected
+    const markMessagesAsRead = async (conversationId: string, senderId: string) => {
+      try {
+        const batch = writeBatch(firestore);
+        const messagesQuery = query(
+          collection(firestore, "messages"),
+          where("conversationId", "==", conversationId),
+          where("senderId", "==", senderId),
+          where("read", "==", false)
+        );
+    
+        const messagesSnapshot = await getDocs(messagesQuery);
+    
+        messagesSnapshot.docs.forEach(doc => {
+          const messageRef = firestore.collection("messages").doc(doc.id);
+          batch.update(messageRef, { read: true });
+        });
+    
+        await batch.commit();
+    
+        // Update local state
+        setMessages(prevMessages =>
+          prevMessages.map(msg =>
+            msg.senderId === senderId ? { ...msg, read: true } : msg
+          )
+        );
       } catch (error) {
-        console.error('Error subscribing to channel:', error);
+        console.error('Error marking messages as read:', error);
+      }
+    };
+
+    markMessagesAsRead(selectedConversationId, currentUser.uid);
+
+    return () => {
+      unsubscribeMessages();
+    };
+  }, [currentUser, selectedConversationId, toast]);
+
+  const handleSendMessage = async () => {
+    if (!newMessage.trim() || !currentUser || !selectedConversationId) return;
+
+    setSending(true);
+    try {
+      // Find the receiverId
+      const conversation = conversations.find(conv => conv.id === selectedConversationId);
+      const receiverId = conversation?.participants.find(uid => uid !== currentUser.uid);
+
+      if (!receiverId) {
+        console.error("Receiver ID not found");
         toast({
           title: "Error",
-          description: "Failed to subscribe to channel",
+          description: "Could not find receiver",
           variant: "destructive",
         });
+        return;
       }
-    }
-  }, [selectedConversation?.id, messages, conversations]);
 
-  // Add typing indicator
-  useEffect(() => {
-    if (selectedConversation) {
-      const channel = pusherInstance.subscribe(selectedConversation.id);
-      channel.bind('client-typing', (data: { userId: string, isTyping: boolean }) => {
-        if (data.userId !== currentUser?.uid) {
-          setIsTyping(data.isTyping);
-        }
-      });
+      const messageResult = await sendMessage(selectedConversationId, currentUser.uid, receiverId, newMessage);
 
-      return () => {
-        channel.unbind_all();
-        pusherInstance.unsubscribe(selectedConversation.id);
-      };
-    }
-  }, [selectedConversation?.id, currentUser?.uid]);
+      if (messageResult?.messageId) {
+        // Optimistically update local state
+        const tempMessage: Message = {
+          id: messageResult.messageId,
+          conversationId: selectedConversationId,
+          senderId: currentUser.uid,
+          receiverId: receiverId,
+          text: newMessage,
+          timestamp: new Date(),
+          read: false,
+        };
 
-  // Handle typing indicator
-  const handleTyping = (isTyping: boolean) => {
-    if (selectedConversation) {
-      const channel = pusherInstance.channel(selectedConversation.id);
-      channel.trigger('client-typing', { userId: currentUser?.uid, isTyping });
-    }
-  };
+        setMessages(prevMessages => [...prevMessages, tempMessage]);
+        saveMessage(selectedConversationId, tempMessage);
 
-  // Handle message reaction
-  const handleReaction = (messageId: string, reaction: string) => {
-    const updatedMessages = messages.map(msg => 
-      msg.id === messageId 
-        ? { ...msg, reactions: { ...msg.reactions, [currentUser?.uid || '']: reaction } }
-        : msg
-    );
-    setMessages(updatedMessages);
-    if (selectedConversation) {
-      saveMessages(selectedConversation.id, updatedMessages);
-    }
-  };
-
-  // Handle message reply
-  const handleReply = (message: Message) => {
-    setReplyTo(message);
-  };
-
-  // Handle message search
-  const handleSearch = (query: string) => {
-    setSearchQuery(query);
-    if (query.trim()) {
-      const filtered = messages.filter(msg => 
-        msg.text.toLowerCase().includes(query.toLowerCase())
-      );
-      setMessages(filtered);
-    } else {
-      // Reset to original messages when search is cleared
-      if (selectedConversation) {
-        const savedMessages = getMessages(selectedConversation.id);
-        setMessages(savedMessages);
+        setNewMessage('');
       }
-    }
-  };
-
-  const handleSendMessage = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!newMessage.trim() || !selectedConversation || !currentUser) return;
-
-    try {
-      const message: Message = {
-        id: Date.now().toString(),
-        conversationId: selectedConversation.id,
-        senderId: currentUser.uid,
-        receiverId: selectedConversation.participants.find(p => p !== currentUser.uid) || '',
-        text: newMessage,
-        timestamp: new Date(),
-        read: false
-      };
-
-      // Instead of using batch which doesn't exist directly on firestore, use writeBatch
-      const batch = writeBatch(firestore);
-      
-      // Create the message
-      const messageRef = doc(collection(firestore, "messages"));
-      batch.set(messageRef, {
-        conversationId: message.conversationId,
-        senderId: message.senderId,
-        receiverId: message.receiverId,
-        text: message.text,
-        read: false,
-        timestamp: serverTimestamp()
-      });
-      
-      // Update the conversation
-      if (selectedConversation.id.startsWith('conversation-')) {
-        // This is a local conversation, create it in Firestore first
-        const conversationRef = doc(collection(firestore, "conversations"));
-        batch.set(conversationRef, {
-          participants: selectedConversation.participants,
-          lastMessage: message.text,
-          lastMessageTime: serverTimestamp(),
-          createdAt: serverTimestamp(),
-          updatedAt: serverTimestamp()
-        });
-        
-        // Update the local conversation ID
-        message.conversationId = conversationRef.id;
-      } else {
-        // Update existing conversation
-        const conversationRef = doc(firestore, "conversations", selectedConversation.id);
-        batch.update(conversationRef, {
-          lastMessage: message.text,
-          lastMessageTime: serverTimestamp(),
-          updatedAt: serverTimestamp()
-        });
-      }
-      
-      // Commit the batch
-      await batch.commit();
-
-      // Send message through Pusher
-      const channel = pusherInstance.channel(selectedConversation.id);
-      if (!channel) {
-        throw new Error('Channel not found');
-      }
-      channel.trigger('client-new-message', message);
-
-      // Update local state
-      const updatedMessages = [...messages, message];
-      setMessages(updatedMessages);
-      setNewMessage('');
-
-      // Update conversation list
-      const updatedConversations = conversations.map(conv => 
-        conv.id === selectedConversation.id 
-          ? { ...conv, lastMessage: message.text, lastMessageTime: message.timestamp.toISOString() }
-          : conv
-      ) as Conversation[];
-      setConversations(updatedConversations);
-
-      // Save to localStorage
-      saveMessages(selectedConversation.id, updatedMessages);
-      saveConversations(updatedConversations);
-
     } catch (error) {
-      console.error('Error sending message:', error);
+      console.error("Error sending message:", error);
       toast({
         title: "Error",
         description: "Failed to send message",
         variant: "destructive",
       });
+    } finally {
+      setSending(false);
     }
   };
 
-  const handleUserSelect = async (userId: string) => {
-    // Find existing conversation with this user
-    const existingConversation = conversations.find(conv => 
-      conv.participants.includes(userId) && conv.participants.includes(currentUser?.uid || '')
-    );
-
-    if (existingConversation) {
-      setSelectedConversation(existingConversation);
-    } else {
-      try {
-        // Fetch user details
-        const userDoc = await getDoc(doc(firestore, "users", userId));
-        if (!userDoc.exists()) {
-          throw new Error("User not found");
-        }
-        
-        const userData = userDoc.data();
-        
-        // Create new conversation
-        const newConversation: Conversation = {
-          id: `conversation-${Date.now()}`,
-          participants: [currentUser?.uid || '', userId],
-          lastMessage: '',
-          lastMessageTime: new Date().toISOString(),
-          unreadCount: 0,
-          otherUser: {
-            id: userId,
-            displayName: userData.displayName || 'User',
-            photoURL: userData.photoURL || null,
-            headline: userData.headline || ''
-          }
-        };
-
-        setConversations([...conversations, newConversation]);
-        setSelectedConversation(newConversation);
-        saveConversations([...conversations, newConversation]);
-      } catch (error) {
-        console.error('Error creating conversation:', error);
-        toast({
-          title: "Error",
-          description: "Failed to create conversation",
-          variant: "destructive",
-        });
-      }
+  const deleteConversation = async (conversationId: string) => {
+    try {
+      const batch = writeBatch(firestore);
+      const conversationRef = doc(firestore, "conversations", conversationId);
+      batch.delete(conversationRef);
+  
+      // Delete messages related to the conversation
+      const messagesQuery = query(
+        collection(firestore, "messages"),
+        where("conversationId", "==", conversationId)
+      );
+  
+      const messagesSnapshot = await getDocs(messagesQuery);
+      messagesSnapshot.forEach(doc => {
+        batch.delete(doc(firestore, "messages", doc.id));
+      });
+  
+      await batch.commit();
+  
+      // Update local state
+      setConversations(prevConversations =>
+        prevConversations.filter(conversation => conversation.id !== conversationId)
+      );
+      setSelectedConversationId(null);
+      setMessages([]);
+  
+      toast({
+        title: "Conversation Deleted",
+        description: "The conversation has been successfully deleted.",
+      });
+    } catch (error) {
+      console.error('Error deleting conversation:', error);
+      toast({
+        title: "Error",
+        description: "Failed to delete the conversation.",
+        variant: "destructive",
+      });
     }
   };
-
-  if (!currentUser) {
-    return (
-      <div className="flex items-center justify-center h-screen">
-        <p>Please sign in to access messages</p>
-      </div>
-    );
-  }
 
   return (
-    <div className="fixed inset-0 flex bg-[#111b21] mt-16">
-      {/* Sidebar */}
-      <div className="w-full md:w-[30%] bg-[#202c33] flex flex-col h-[calc(100vh-4rem)]">
-        {/* Header */}
-        <div className="h-16 p-4 bg-[#202c33] border-b border-[#374045]">
-          <div className="flex items-center justify-between h-full">
-            <h2 className="text-xl font-semibold text-white">Messages</h2>
-            <div className="flex items-center space-x-2">
-              <Button variant="ghost" size="icon" className="text-white" onClick={() => setShowSearch(!showSearch)}>
-                <Search className="h-5 w-5" />
-              </Button>
-              <Button variant="ghost" size="icon" className="text-white">
-                <MoreVertical className="h-5 w-5" />
-              </Button>
-            </div>
-          </div>
-          {showSearch && (
-            <div className="mt-2">
-              <Input
-                type="text"
-                placeholder="Search messages..."
-                value={searchQuery}
-                onChange={(e) => handleSearch(e.target.value)}
-                className="bg-[#2a3942] border-none text-white placeholder:text-[#8696a0]"
-              />
-            </div>
-          )}
-          <div className="mt-2">
-            <UserSearch onUserSelect={handleUserSelect} />
-          </div>
+    <div className="min-h-screen pt-20 px-4 bg-background">
+      <div className="container mx-auto flex flex-col md:flex-row h-[80vh]">
+        {/* Conversations List */}
+        <div className="w-full md:w-1/3 lg:w-1/4 p-4">
+          <motion.div
+            initial={{ opacity: 0, x: -20 }}
+            animate={{ opacity: 1, x: 0 }}
+            transition={{ duration: 0.5 }}
+            className="glass-card h-full rounded-lg"
+          >
+            <h2 className="text-xl font-bold mb-4 p-4">Conversations</h2>
+            <ScrollArea className="h-[70vh]">
+              {loading ? (
+                <div className="animate-pulse p-4">Loading conversations...</div>
+              ) : (
+                conversations.map((conversation) => (
+                  <ConversationItem
+                    key={conversation.id}
+                    conversation={conversation}
+                    currentUserId={currentUser?.uid || ''}
+                    onSelect={setSelectedConversationId}
+                  />
+                ))
+              )}
+            </ScrollArea>
+          </motion.div>
         </div>
 
-        {/* Conversations List */}
-        <ScrollArea className="flex-1">
-          {conversations.map((conversation) => (
-            <div
-              key={conversation.id}
-              onClick={() => {
-                setSelectedConversation(conversation);
-                setSearchQuery(''); // Clear search when selecting a conversation
-                const savedMessages = getMessages(conversation.id);
-                setMessages(savedMessages);
-              }}
-              className={`p-3 hover:bg-[#202c33] cursor-pointer transition-all duration-200 ${
-                selectedConversation?.id === conversation.id
-                  ? "bg-[#2a3942]"
-                  : ""
-              }`}
+        {/* Messages Area */}
+        <div className="w-full md:w-2/3 lg:w-3/4 p-4 flex flex-col">
+          {selectedConversationId ? (
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.5 }}
+              className="flex flex-col h-full glass-card rounded-lg"
             >
-              <div className="flex items-center space-x-3">
-                <div className="relative">
-                  <div className="w-12 h-12 rounded-full bg-[#374045] flex items-center justify-center text-white overflow-hidden">
-                    {conversation.otherUser?.photoURL ? (
-                      <img 
-                        src={conversation.otherUser.photoURL} 
-                        alt={conversation.otherUser.displayName} 
-                        className="w-full h-full object-cover"
-                      />
-                    ) : (
-                      conversation.otherUser?.displayName?.charAt(0) || "U"
-                    )}
-                  </div>
-                  {conversation.otherUser?.isOnline && (
-                    <div className="absolute bottom-0 right-0 w-3 h-3 bg-green-500 rounded-full border-2 border-[#202c33]" />
-                  )}
-                </div>
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center justify-between">
-                    <h3 className="text-white font-medium truncate">
-                      {conversation.otherUser?.displayName || "Unknown User"}
-                    </h3>
-                    <span className="text-xs text-[#8696a0]">
-                      {conversation.lastMessageTime ? new Date(conversation.lastMessageTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : ''}
-                    </span>
-                  </div>
-                  <p className="text-sm text-[#8696a0] truncate">
-                    {conversation.lastMessage || "No messages yet"}
-                  </p>
-                </div>
+              {/* Messages Display */}
+              <div className="flex-1 p-4">
+                <ScrollArea className="h-[55vh]">
+                  {messages.map((message) => (
+                    <MessageBubble
+                      key={message.id}
+                      message={message}
+                      isOwnMessage={message.senderId === currentUser?.uid}
+                    />
+                  ))}
+                  <div ref={messagesEndRef} />
+                </ScrollArea>
               </div>
-            </div>
-          ))}
-        </ScrollArea>
-      </div>
 
-      {/* Messages Area */}
-      <div className={`hidden md:flex flex-1 flex-col bg-[#0b141a] h-[calc(100vh-4rem)] ${
-        !selectedConversation ? "items-center justify-center" : ""
-      }`}>
-        {selectedConversation ? (
-          <>
-            {/* Message Header */}
-            <div className="h-16 p-4 bg-[#202c33] border-b border-[#374045]">
-              <div className="flex items-center justify-between h-full">
-                <div className="flex items-center">
-                  <div className="relative">
-                    <div className="w-10 h-10 rounded-full bg-[#374045] flex items-center justify-center text-white mr-3 overflow-hidden">
-                      {selectedConversation.otherUser?.photoURL ? (
-                        <img 
-                          src={selectedConversation.otherUser.photoURL} 
-                          alt={selectedConversation.otherUser.displayName} 
-                          className="w-full h-full object-cover"
-                        />
-                      ) : (
-                        selectedConversation.otherUser?.displayName?.charAt(0) || "U"
-                      )}
-                    </div>
-                    {selectedConversation.otherUser?.isOnline && (
-                      <div className="absolute bottom-0 right-0 w-3 h-3 bg-green-500 rounded-full border-2 border-[#202c33]" />
-                    )}
-                  </div>
-                  <div>
-                    <h3 className="text-white font-medium">
-                      {selectedConversation.otherUser?.displayName || "Unknown User"}
-                    </h3>
-                    <p className="text-sm text-[#8696a0]">
-                      {isTyping ? "typing..." : selectedConversation.otherUser?.headline || "No headline"}
-                    </p>
-                  </div>
-                </div>
-                <div className="flex items-center space-x-2">
-                  <Button 
-                    variant="ghost" 
-                    size="icon" 
-                    className="text-white"
-                    onClick={() => {
-                      setShowSearch(!showSearch);
-                      setSearchQuery('');
-                    }}
-                  >
-                    <Search className="h-5 w-5" />
-                  </Button>
-                  <Button variant="ghost" size="icon" className="text-white">
-                    <MoreVertical className="h-5 w-5" />
-                  </Button>
-                </div>
-              </div>
-            </div>
-
-            {/* Messages */}
-            <ScrollArea className="flex-1">
-              <div className="p-4 space-y-4">
-                {messages.map((message) => (
-                  <div
-                    key={message.id}
-                    className={`flex ${
-                      message.senderId === currentUser.uid ? "justify-end" : "justify-start"
-                    }`}
-                  >
-                    <div className="max-w-[70%]">
-                      {message.replyTo && (
-                        <div className={`mb-1 p-2 rounded-lg ${
-                          message.senderId === currentUser.uid
-                            ? "bg-[#005c4b]/50"
-                            : "bg-[#202c33]/50"
-                        }`}>
-                          <p className="text-sm text-[#8696a0]">
-                            Replying to {message.replyTo.senderId === currentUser.uid ? "you" : selectedConversation.otherUser?.displayName}
-                          </p>
-                          <p className="text-sm truncate">{message.replyTo.text}</p>
-                        </div>
-                      )}
-                      <div
-                        className={`rounded-lg p-3 ${
-                          message.senderId === currentUser.uid
-                            ? "bg-[#005c4b] text-white"
-                            : "bg-[#202c33] text-white"
-                        }`}
-                      >
-                        <p>{message.text}</p>
-                        <div className="flex items-center justify-end mt-1">
-                          <span className="text-xs text-[#8696a0]">
-                            {new Date(message.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                          </span>
-                          {message.senderId === currentUser.uid && (
-                            <span className="ml-1">
-                              {message.status === 'read' ? (
-                                <CheckCheck className="h-4 w-4 text-[#8696a0]" />
-                              ) : message.status === 'delivered' ? (
-                                <CheckCheck className="h-4 w-4 text-[#8696a0]" />
-                              ) : message.status === 'sent' ? (
-                                <Check className="h-4 w-4 text-[#8696a0]" />
-                              ) : (
-                                <span className="animate-spin">⌛</span>
-                              )}
-                            </span>
-                          )}
-                        </div>
-                      </div>
-                      {message.reactions && Object.keys(message.reactions).length > 0 && (
-                        <div className="flex flex-wrap gap-1 mt-1">
-                          {Object.entries(message.reactions).map(([userId, reaction]) => (
-                            <TooltipProvider key={userId}>
-                              <Tooltip>
-                                <TooltipTrigger>
-                                  <Badge variant="secondary" className="text-xs">
-                                    {reaction}
-                                  </Badge>
-                                </TooltipTrigger>
-                                <TooltipContent>
-                                  <p>{userId === currentUser?.uid ? "You" : "Other user"}</p>
-                                </TooltipContent>
-                              </Tooltip>
-                            </TooltipProvider>
-                          ))}
-                        </div>
-                      )}
-                      <div className="flex items-center space-x-2 mt-1">
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="h-6 w-6 text-[#8696a0]"
-                          onClick={() => handleReply(message)}
-                        >
-                          <Reply className="h-4 w-4" />
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="h-6 w-6 text-[#8696a0]"
-                          onClick={() => handleReaction(message.id, "👍")}
-                        >
-                          <ThumbsUp className="h-4 w-4" />
-                        </Button>
-                      </div>
-                    </div>
-                  </div>
-                ))}
-                <div ref={messagesEndRef} />
-              </div>
-            </ScrollArea>
-
-            {/* Message Input */}
-            <div className="h-16 p-4 bg-[#202c33]">
-              {replyTo && (
-                <div className="mb-2 p-2 bg-[#2a3942] rounded-lg flex items-center justify-between">
-                  <div>
-                    <p className="text-sm text-[#8696a0]">
-                      Replying to {replyTo.senderId === currentUser?.uid ? "you" : selectedConversation.otherUser?.displayName}
-                    </p>
-                    <p className="text-sm text-white truncate">{replyTo.text}</p>
-                  </div>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="h-6 w-6 text-[#8696a0]"
-                    onClick={() => setReplyTo(null)}
-                  >
-                    <X className="h-4 w-4" />
-                  </Button>
-                </div>
-              )}
-              <form onSubmit={handleSendMessage} className="flex items-center space-x-2">
-                <Button type="button" variant="ghost" size="icon" className="text-[#8696a0]">
-                  <Paperclip className="h-5 w-5" />
-                </Button>
+              {/* Message Input */}
+              <div className="p-4 flex items-center border-t">
                 <Input
                   type="text"
-                  placeholder="Type a message"
+                  placeholder="Type your message..."
                   value={newMessage}
-                  onChange={(e) => {
-                    setNewMessage(e.target.value);
-                    handleTyping(e.target.value.length > 0);
-                  }}
-                  onFocus={() => handleTyping(true)}
-                  onBlur={() => handleTyping(false)}
-                  className="flex-1 bg-[#2a3942] border-none text-white placeholder:text-[#8696a0]"
+                  onChange={(e) => setNewMessage(e.target.value)}
+                  className="flex-1 rounded-l-md"
                 />
-                <Button type="button" variant="ghost" size="icon" className="text-[#8696a0]">
-                  <Smile className="h-5 w-5" />
+                <Button
+                  onClick={handleSendMessage}
+                  disabled={sending}
+                  className="rounded-r-md bg-gradient-to-r from-sigma-blue to-sigma-purple hover:from-sigma-purple hover:to-sigma-blue text-white"
+                >
+                  {sending ? <div className="animate-spin rounded-full h-4 w-4 border-t-2 border-b-2 border-white"></div> : <Send className="h-4 w-4 mr-2" />}
+                  Send
                 </Button>
-                <Button type="submit" size="icon" className="bg-[#00a884] text-white">
-                  <Send className="h-5 w-5" />
-                </Button>
-              </form>
-            </div>
-          </>
-        ) : (
-          <div className="text-center text-[#8696a0] p-4">
-            <GlassCard className="p-8">
-              <h3 className="text-xl font-medium mb-4">Welcome to Messages</h3>
-              <p>Select a conversation or start a new one</p>
-            </GlassCard>
-          </div>
-        )}
+              </div>
+            </motion.div>
+          ) : (
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              transition={{ duration: 0.3 }}
+              className="flex items-center justify-center h-full glass-card rounded-lg"
+            >
+              <p className="text-muted-foreground">Select a conversation to view messages</p>
+            </motion.div>
+          )}
+        </div>
       </div>
     </div>
   );
 };
 
 export default MessagesPage;
-

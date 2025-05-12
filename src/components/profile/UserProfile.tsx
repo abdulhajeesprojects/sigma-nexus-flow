@@ -1,3 +1,4 @@
+
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
@@ -20,9 +21,9 @@ interface UserProfile {
   location: string;
   occupation: string;
   headline?: string;
-  interests: string[];
-  connections: string[];
-  posts: string[];
+  interests?: string[];
+  connections?: string[];
+  posts?: string[];
   createdAt: Date;
   updatedAt: Date;
 }
