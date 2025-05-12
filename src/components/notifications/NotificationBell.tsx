@@ -2,7 +2,18 @@
 import React, { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Bell } from "lucide-react";
-import { collection, query, where, orderBy, onSnapshot, doc, updateDoc, getDocs, getDoc } from "firebase/firestore";
+import { 
+  collection, 
+  query, 
+  where, 
+  orderBy, 
+  onSnapshot, 
+  doc, 
+  updateDoc, 
+  getDocs, 
+  getDoc, 
+  DocumentData 
+} from "firebase/firestore";
 import { firestore, auth } from "@/lib/firebase";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -50,17 +61,17 @@ const NotificationBell = () => {
       const notificationData: Notification[] = [];
       
       // Get all notifications
-      for (const doc of snapshot.docs) {
-        const notif = { id: doc.id, ...doc.data(), read: doc.data().isRead || false } as Notification;
+      for (const docSnapshot of snapshot.docs) {
+        const notif = { id: docSnapshot.id, ...docSnapshot.data(), read: docSnapshot.data().isRead || false } as Notification;
         
         // Fetch sender details
         try {
           const senderRef = doc(firestore, "users", notif.senderId);
           const senderDoc = await getDoc(senderRef);
           if (senderDoc.exists()) {
-            const senderData = senderDoc.data();
-            notif.senderName = senderData?.displayName || "User";
-            notif.senderPhotoURL = senderData?.photoURL || null;
+            const senderData = senderDoc.data() as DocumentData;
+            notif.senderName = senderData.displayName || "User";
+            notif.senderPhotoURL = senderData.photoURL || null;
           }
         } catch (err) {
           console.error("Error fetching sender data:", err);
