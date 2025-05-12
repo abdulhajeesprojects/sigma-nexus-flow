@@ -6,6 +6,11 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
+    // Basic read access to most collections
+    match /{document=**} {
+      allow read: if true;
+    }
+    
     // Allow public read access to users collection
     match /users/{userId} {
       allow read: if true;
@@ -13,7 +18,7 @@ service cloud.firestore {
                      (request.auth.uid == userId || request.resource.data.userId == userId);
     }
     
-    // Posts collection - should be publicly readable
+    // Posts collection - publicly readable and writeable with auth
     match /posts/{postId} {
       allow read: if true;
       allow create: if request.auth != null;
@@ -92,11 +97,12 @@ service cloud.firestore {
 /*
 {
   "rules": {
+    // Allow public read to most data
     ".read": true,
-    ".write": false,
+    
     "presence": {
       ".read": true,
-      ".write": false,
+      ".write": "auth != null",
       "$uid": {
         ".read": true,
         ".write": "auth != null && auth.uid == $uid"
@@ -104,10 +110,31 @@ service cloud.firestore {
     },
     "status": {
       ".read": true,
-      ".write": false,
+      ".write": "auth != null",
       "$uid": {
         ".read": true,
         ".write": "auth != null && auth.uid == $uid"
+      }
+    },
+    "users": {
+      ".read": true,
+      "$uid": {
+        ".read": true,
+        ".write": "auth != null && auth.uid == $uid",
+        "media": {
+          ".read": true,
+          ".write": "auth != null && auth.uid == $uid"
+        },
+        "savedPosts": {
+          ".read": "auth != null && auth.uid == $uid",
+          ".write": "auth != null && auth.uid == $uid"
+        }
+      }
+    },
+    "notifications": {
+      "$uid": {
+        ".read": "auth != null && auth.uid == $uid",
+        ".write": "auth != null"
       }
     },
     "userChats": {

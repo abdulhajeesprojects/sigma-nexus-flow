@@ -1,12 +1,13 @@
 
 import { useState } from "react";
 import { motion } from "framer-motion";
-import { Image, Video, Users, Calendar } from "lucide-react";
+import { Image, Video, Users, Calendar, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
-import { auth, firestore, storage } from "@/lib/firebase";
+import { auth, firestore, storage, database } from "@/lib/firebase";
 import { collection, addDoc, serverTimestamp } from "firebase/firestore";
-import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
+import { ref as storageRef, uploadBytes, getDownloadURL } from "firebase/storage";
+import { ref as dbRef, push } from "firebase/database";
 import { useToast } from "@/hooks/use-toast";
 
 interface CreatePostProps {
@@ -18,10 +19,25 @@ const CreatePost = ({ onPostCreated }: CreatePostProps) => {
   const [isExpanded, setIsExpanded] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [imagePreview, setImagePreview] = useState<string | null>(null);
   const { toast } = useToast();
 
   const handleCreatePost = async () => {
-    if (!auth.currentUser || !content.trim()) return;
+    if (!auth.currentUser) {
+      toast({ 
+        title: "Authentication required", 
+        description: "Please sign in to create a post" 
+      });
+      return;
+    }
+    
+    if (!content.trim() && !selectedFile) {
+      toast({ 
+        title: "Empty post", 
+        description: "Please add some text or an image to your post" 
+      });
+      return;
+    }
     
     setIsSubmitting(true);
     
@@ -30,9 +46,18 @@ const CreatePost = ({ onPostCreated }: CreatePostProps) => {
       
       // Upload image if selected
       if (selectedFile) {
-        const storageRef = ref(storage, `posts/${auth.currentUser.uid}/${Date.now()}-${selectedFile.name}`);
-        const uploadResult = await uploadBytes(storageRef, selectedFile);
+        const imageStorageRef = storageRef(storage, `posts/${auth.currentUser.uid}/${Date.now()}-${selectedFile.name}`);
+        const uploadResult = await uploadBytes(imageStorageRef, selectedFile);
         imageUrl = await getDownloadURL(uploadResult.ref);
+        
+        // Also store reference in realtime database
+        const mediaRef = dbRef(database, `users/${auth.currentUser.uid}/media/posts`);
+        await push(mediaRef, {
+          type: selectedFile.type.includes("video") ? "video" : "image",
+          url: imageUrl,
+          fileName: selectedFile.name,
+          uploadedAt: new Date().toISOString()
+        });
       }
       
       // Create post document
@@ -53,6 +78,7 @@ const CreatePost = ({ onPostCreated }: CreatePostProps) => {
       // Clear form
       setContent("");
       setSelectedFile(null);
+      setImagePreview(null);
       setIsExpanded(false);
       
       toast({
@@ -67,8 +93,8 @@ const CreatePost = ({ onPostCreated }: CreatePostProps) => {
     } catch (error) {
       console.error("Error creating post:", error);
       toast({
-        title: "Error",
-        description: "Failed to create post",
+        title: "Post failed",
+        description: "We couldn't publish your post. Please try again.",
         variant: "destructive",
       });
     } finally {
@@ -78,8 +104,32 @@ const CreatePost = ({ onPostCreated }: CreatePostProps) => {
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
-      setSelectedFile(e.target.files[0]);
+      const file = e.target.files[0];
+      
+      // Validate file size (10MB limit)
+      if (file.size > 10 * 1024 * 1024) {
+        toast({
+          title: "File too large",
+          description: "Please select an image smaller than 10MB",
+          variant: "destructive",
+        });
+        return;
+      }
+      
+      setSelectedFile(file);
+      
+      // Create preview
+      const reader = new FileReader();
+      reader.onload = (event) => {
+        setImagePreview(event.target?.result as string);
+      };
+      reader.readAsDataURL(file);
     }
+  };
+
+  const removeSelectedFile = () => {
+    setSelectedFile(null);
+    setImagePreview(null);
   };
 
   return (
@@ -107,31 +157,38 @@ const CreatePost = ({ onPostCreated }: CreatePostProps) => {
               onChange={(e) => setContent(e.target.value)}
               rows={3}
             />
-            {selectedFile && (
-              <div className="mb-3 p-2 bg-background rounded flex justify-between items-center">
-                <span className="text-sm truncate">{selectedFile.name}</span>
-                <Button 
-                  variant="ghost" 
-                  size="sm" 
-                  className="h-6 w-6 p-0" 
-                  onClick={() => setSelectedFile(null)}
+            
+            {imagePreview && (
+              <div className="relative mb-3 rounded-md overflow-hidden border">
+                <img 
+                  src={imagePreview} 
+                  alt="Preview" 
+                  className="max-h-64 w-full object-contain bg-black/5"
+                />
+                <Button
+                  variant="destructive"
+                  size="icon"
+                  className="absolute top-2 right-2 h-8 w-8 rounded-full"
+                  onClick={removeSelectedFile}
                 >
-                  ✕
+                  <X className="h-4 w-4" />
                 </Button>
               </div>
             )}
+            
             <div className="flex justify-between items-center">
               <div className="flex space-x-2">
                 <label className="cursor-pointer">
                   <input 
                     type="file" 
-                    accept="image/*" 
+                    accept="image/*,video/*" 
                     className="hidden" 
                     onChange={handleFileChange}
+                    disabled={!!selectedFile}
                   />
                   <Button type="button" variant="outline" size="sm">
                     <Image className="w-4 h-4 mr-2" />
-                    <span>Add Photo</span>
+                    <span>Add Media</span>
                   </Button>
                 </label>
               </div>
@@ -140,17 +197,23 @@ const CreatePost = ({ onPostCreated }: CreatePostProps) => {
                 <Button 
                   variant="outline" 
                   size="sm" 
-                  onClick={() => setIsExpanded(false)}
+                  onClick={() => {
+                    setIsExpanded(false);
+                    setContent("");
+                    setSelectedFile(null);
+                    setImagePreview(null);
+                  }}
+                  disabled={isSubmitting}
                 >
                   Cancel
                 </Button>
                 <Button
                   size="sm"
                   onClick={handleCreatePost}
-                  disabled={!content.trim() || isSubmitting}
+                  disabled={((!content.trim() && !selectedFile) || isSubmitting)}
                   className="bg-gradient-to-r from-sigma-blue to-sigma-purple hover:from-sigma-purple hover:to-sigma-blue text-white"
                 >
-                  Post
+                  {isSubmitting ? "Posting..." : "Post"}
                 </Button>
               </div>
             </div>

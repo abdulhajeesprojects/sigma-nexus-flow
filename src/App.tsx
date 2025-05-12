@@ -1,142 +1,58 @@
-
-import { useEffect, useState } from "react";
-import { Toaster } from "@/components/ui/toaster";
-import { Toaster as Sonner } from "@/components/ui/sonner";
-import { TooltipProvider } from "@/components/ui/tooltip";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Routes, Route, useNavigate, Navigate } from "react-router-dom";
-import { ThemeProvider } from "@/providers/ThemeProvider";
-import Layout from "@/components/layout/Layout";
-import HomePage from "@/pages/HomePage";
-import AuthPage from "@/pages/AuthPage";
-import FeedPage from "@/pages/FeedPage";
-import ProfilePage from "@/pages/ProfilePage";
-import NetworkPage from "@/pages/NetworkPage";
-import JobsPage from "@/pages/JobsPage";
-import MessagesPage from "@/pages/MessagesPage";
-import AboutPage from "@/pages/AboutPage";
-import FeaturesPage from "@/pages/FeaturesPage";
-import PricingPage from "@/pages/PricingPage";
-import UserProfilePage from "@/pages/UserProfilePage";
+import { useEffect } from "react";
+import { Routes, Route } from "react-router-dom";
+import HomePage from "./pages/HomePage";
+import AboutPage from "./pages/AboutPage";
+import FeaturesPage from "./pages/FeaturesPage";
+import PricingPage from "./pages/PricingPage";
+import AuthPage from "./pages/AuthPage";
+import FeedPage from "./pages/FeedPage";
+import ProfilePage from "./pages/ProfilePage";
+import UserProfilePage from "./pages/UserProfilePage";
+import NetworkPage from "./pages/NetworkPage";
+import ConnectionRequestsPage from "./pages/ConnectionRequestsPage";
+import MessagesPage from "./pages/MessagesPage";
+import JobsPage from "./pages/JobsPage";
 import NotFound from "./pages/NotFound";
-import { auth } from "./lib/firebase";
-import { onAuthStateChanged } from "firebase/auth";
-import { setupPresence, cleanupPresence } from "./services/presence";
+import Layout from "./components/layout/Layout";
+import { Toaster } from "./components/ui/toaster";
+import { ThemeProvider } from "./providers/ThemeProvider";
+import "./App.css";
 
-const queryClient = new QueryClient({
-  defaultOptions: {
-    queries: {
-      refetchOnWindowFocus: false,
-      retry: 1,
-      staleTime: 5 * 60 * 1000,
-    },
-  },
-});
-
-// Auth listener to handle presence setup/cleanup
-const AuthListener = () => {
-  const navigate = useNavigate();
-
+function App() {
+  // Track user activity for presence system
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, (user) => {
-      if (user) {
-        // User is signed in
-        setupPresence();
-      } else {
-        // User is signed out
-        cleanupPresence();
-      }
-    });
-
-    return () => {
-      unsubscribe();
-      cleanupPresence();
+    const setupPresence = async () => {
+      // This is a placeholder for presence setup
+      // We'll implement this later
     };
-  }, [navigate]);
 
-  return null;
-};
-
-// Protected route component
-const ProtectedRoute = ({ children }: { children: JSX.Element }) => {
-  const [user, setUser] = useState<any>(null);
-  const [loading, setLoading] = useState(true);
-  
-  useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
-      setUser(currentUser);
-      setLoading(false);
-    });
-    
-    return () => unsubscribe();
+    setupPresence();
   }, []);
-  
-  if (loading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-background">
-        <div className="text-center">
-          <div className="w-16 h-16 border-4 border-sigma-purple border-t-transparent rounded-full animate-spin mx-auto"></div>
-          <p className="mt-4 text-lg">Loading SiGMA Hub...</p>
-        </div>
-      </div>
-    );
-  }
-  
-  if (!user) {
-    return <Navigate to="/auth" replace />;
-  }
-  
-  return children;
-};
 
-const App = () => (
-  <QueryClientProvider client={queryClient}>
-    <ThemeProvider defaultTheme="system">
-      <TooltipProvider>
-        <Toaster />
-        <Sonner />
-        <BrowserRouter>
-          <AuthListener />
-          <Routes>
-            <Route element={<Layout />}>
-              <Route path="/" element={<HomePage />} />
-              <Route path="/feed" element={
-                <ProtectedRoute>
-                  <FeedPage />
-                </ProtectedRoute>
-              } />
-              <Route path="/profile" element={
-                <ProtectedRoute>
-                  <ProfilePage />
-                </ProtectedRoute>
-              } />
-              <Route path="/profile/:userId" element={<UserProfilePage />} />
-              <Route path="/network" element={
-                <ProtectedRoute>
-                  <NetworkPage />
-                </ProtectedRoute>
-              } />
-              <Route path="/jobs" element={
-                <ProtectedRoute>
-                  <JobsPage />
-                </ProtectedRoute>
-              } />
-              <Route path="/messages" element={
-                <ProtectedRoute>
-                  <MessagesPage />
-                </ProtectedRoute>
-              } />
-              <Route path="/about" element={<AboutPage />} />
-              <Route path="/features" element={<FeaturesPage />} />
-              <Route path="/pricing" element={<PricingPage />} />
-            </Route>
+  return (
+    <>
+      <ThemeProvider defaultTheme="dark" storageKey="sigma-theme">
+        <Routes>
+          <Route element={<Layout />}>
+            <Route path="/" element={<HomePage />} />
+            <Route path="/about" element={<AboutPage />} />
+            <Route path="/features" element={<FeaturesPage />} />
+            <Route path="/pricing" element={<PricingPage />} />
             <Route path="/auth" element={<AuthPage />} />
+            <Route path="/feed" element={<FeedPage />} />
+            <Route path="/profile" element={<ProfilePage />} />
+            <Route path="/profile/:userId" element={<UserProfilePage />} />
+            <Route path="/network" element={<NetworkPage />} />
+            <Route path="/requests" element={<ConnectionRequestsPage />} />
+            <Route path="/messages" element={<MessagesPage />} />
+            <Route path="/jobs" element={<JobsPage />} />
             <Route path="*" element={<NotFound />} />
-          </Routes>
-        </BrowserRouter>
-      </TooltipProvider>
-    </ThemeProvider>
-  </QueryClientProvider>
-);
+          </Route>
+        </Routes>
+        <Toaster />
+      </ThemeProvider>
+    </>
+  );
+}
 
 export default App;

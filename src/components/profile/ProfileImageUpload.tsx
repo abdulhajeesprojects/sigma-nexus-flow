@@ -2,11 +2,12 @@
 import { useState } from "react";
 import { Camera } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { uploadProfileImage } from "@/services/firestore";
 import { useToast } from "@/hooks/use-toast";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { updateProfile } from "firebase/auth";
-import { auth } from "@/lib/firebase";
+import { auth, database, storage } from "@/lib/firebase";
+import { ref as storageRef, uploadBytes, getDownloadURL } from "firebase/storage";
+import { ref as dbRef, set, push } from "firebase/database";
 
 interface ProfileImageUploadProps {
   userId: string;
@@ -44,7 +45,18 @@ const ProfileImageUpload = ({ userId, currentPhotoURL, onPhotoUpdated }: Profile
     setUploading(true);
     
     try {
-      const photoURL = await uploadProfileImage(userId, file);
+      // Upload to Firebase Storage
+      const imageStorageRef = storageRef(storage, `profile/${userId}/${Date.now()}-${file.name}`);
+      const uploadResult = await uploadBytes(imageStorageRef, file);
+      const photoURL = await getDownloadURL(uploadResult.ref);
+      
+      // Store the reference in Realtime Database
+      const profileImageRef = dbRef(database, `users/${userId}/profileImage`);
+      await set(profileImageRef, {
+        url: photoURL,
+        fileName: file.name,
+        uploadedAt: new Date().toISOString()
+      });
       
       // Also update the auth profile
       const currentUser = auth.currentUser;
@@ -55,14 +67,14 @@ const ProfileImageUpload = ({ userId, currentPhotoURL, onPhotoUpdated }: Profile
       onPhotoUpdated(photoURL);
       
       toast({
-        title: "Profile photo updated",
-        description: "Your profile photo has been updated successfully",
+        title: "Success",
+        description: "Your profile photo has been updated",
       });
     } catch (error) {
       console.error("Error uploading profile image:", error);
       toast({
         title: "Upload failed",
-        description: "Failed to upload profile image",
+        description: "We couldn't upload your image. Please try again.",
         variant: "destructive",
       });
     } finally {
@@ -86,7 +98,7 @@ const ProfileImageUpload = ({ userId, currentPhotoURL, onPhotoUpdated }: Profile
             alt="Profile" 
             className="object-cover"
             onError={(e) => {
-              // Handle broken image
+              // Handle broken image gracefully
               (e.target as HTMLImageElement).style.display = 'none';
             }} 
           />
