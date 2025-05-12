@@ -4,7 +4,7 @@ import { motion } from 'framer-motion';
 import { Button } from '@/components/ui/button';
 import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
-import { Input } from '@/components/ui/input';
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { useAuth } from '@/hooks/use-auth';
 import { useToast } from '@/hooks/use-toast';
 import { updateUserProfile } from '@/services/firestore';
@@ -132,7 +132,7 @@ const ProfileSettings = () => {
           </div>
         </div>
         
-        {/* Profile Picture */}
+        {/* Profile Picture - Using the DefaultProfileSelector */}
         <div>
           <h3 className="text-lg font-medium mb-4">Profile Picture</h3>
           

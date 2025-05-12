@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
 import { Button } from "@/components/ui/button";
@@ -8,7 +7,7 @@ import { Label } from "@/components/ui/label";
 import { PlusCircle, MinusCircle } from "lucide-react";
 import { updateUserProfile } from "@/services/firestore";
 import { useToast } from "@/hooks/use-toast";
-import ProfileImageUpload from "./ProfileImageUpload";
+import ProfileImageSelection from "./ProfileImageSelection";
 
 interface ProfileEditFormProps {
   user: any;
@@ -151,16 +150,16 @@ const ProfileEditForm = ({ user, onCancel, onSave }: ProfileEditFormProps) => {
       onSubmit={handleSubmit}
     >
       <div className="grid md:grid-cols-[150px_1fr] gap-4 items-start">
-        <div>
-          <ProfileImageUpload 
-            userId={user.id} 
+        <div className="flex justify-center md:justify-start">
+          <ProfileImageSelection 
             currentPhotoURL={photoURL} 
             onPhotoUpdated={setPhotoURL}
+            size="md"
           />
         </div>
         
         <div className="space-y-4">
-          <div>
+          <div className="text-left">
             <Label htmlFor="displayName">Full Name</Label>
             <Input
               id="displayName"
@@ -172,7 +171,7 @@ const ProfileEditForm = ({ user, onCancel, onSave }: ProfileEditFormProps) => {
             />
           </div>
           
-          <div>
+          <div className="text-left">
             <Label htmlFor="headline">Professional Headline</Label>
             <Input
               id="headline"
@@ -183,7 +182,7 @@ const ProfileEditForm = ({ user, onCancel, onSave }: ProfileEditFormProps) => {
             />
           </div>
           
-          <div>
+          <div className="text-left">
             <Label htmlFor="location">Location</Label>
             <Input
               id="location"
@@ -196,7 +195,7 @@ const ProfileEditForm = ({ user, onCancel, onSave }: ProfileEditFormProps) => {
         </div>
       </div>
       
-      <div>
+      <div className="text-left">
         <Label htmlFor="bio">About</Label>
         <Textarea
           id="bio"
@@ -208,7 +207,7 @@ const ProfileEditForm = ({ user, onCancel, onSave }: ProfileEditFormProps) => {
         />
       </div>
       
-      <div>
+      <div className="text-left">
         <div className="flex justify-between items-center mb-2">
           <Label>Skills</Label>
           <Button
@@ -246,7 +245,7 @@ const ProfileEditForm = ({ user, onCancel, onSave }: ProfileEditFormProps) => {
         </div>
       </div>
       
-      <div>
+      <div className="text-left">
         <div className="flex justify-between items-center mb-2">
           <Label>Experience</Label>
           <Button
@@ -325,7 +324,7 @@ const ProfileEditForm = ({ user, onCancel, onSave }: ProfileEditFormProps) => {
         </div>
       </div>
       
-      <div>
+      <div className="text-left">
         <div className="flex justify-between items-center mb-2">
           <Label>Education</Label>
           <Button
