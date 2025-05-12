@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { motion } from 'framer-motion';
@@ -20,6 +21,7 @@ import {
   doc,
   updateDoc,
   getDocs,
+  getDoc, // Added the missing import for getDoc
   serverTimestamp,
   writeBatch,
 } from "firebase/firestore";
@@ -165,10 +167,12 @@ const MessagesPage = () => {
       Promise.all(
         updatedConversations.map(async (conversation) => {
           const otherUserId = conversation.participants.find(uid => uid !== currentUser.uid);
-          // Fixed: Use firestore directly instead of accessing collection
-          const userDocRef = doc(firestore, "users", otherUserId || "");
-          const userDoc = await getDoc(userDocRef);
-          const userData = userDoc.data();
+          if (!otherUserId) return conversation;
+          
+          // Fixed: Use correctly imported getDoc for document references
+          const userDocRef = doc(firestore, "users", otherUserId);
+          const userDocSnap = await getDoc(userDocRef);
+          const userData = userDocSnap.exists() ? userDocSnap.data() : null;
 
           return {
             ...conversation,
@@ -327,8 +331,10 @@ const MessagesPage = () => {
       );
   
       const messagesSnapshot = await getDocs(messagesQuery);
-      messagesSnapshot.forEach(doc => {
-        batch.delete(doc(firestore, "messages", doc.id));
+      messagesSnapshot.forEach(docSnapshot => {
+        // Fixed: Create a document reference instead of trying to call the snapshot
+        const messageRef = doc(firestore, "messages", docSnapshot.id);
+        batch.delete(messageRef);
       });
   
       await batch.commit();
