@@ -1,7 +1,6 @@
 
 import { useState, useEffect } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
-import { onAuthStateChanged } from "firebase/auth";
 import { motion, AnimatePresence } from "framer-motion";
 import { auth } from "@/lib/firebase";
 import SignInForm from "@/components/auth/SignInForm";
@@ -21,7 +20,7 @@ const AuthPage = () => {
     }
 
     // Check if the user is already authenticated
-    const unsubscribe = onAuthStateChanged(auth, (user) => {
+    const unsubscribe = auth.onAuthStateChanged((user) => {
       if (user) {
         // User is signed in, redirect to feed
         navigate("/feed");

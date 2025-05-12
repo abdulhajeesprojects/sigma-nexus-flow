@@ -5,10 +5,13 @@ import {
   updateProfile,
   sendEmailVerification,
   sendPasswordResetEmail,
-  signOut as firebaseSignOut 
+  signOut as firebaseSignOut,
+  onAuthStateChanged
 } from "firebase/auth";
-import { auth } from "@/lib/firebase";
+import { auth, firestore, database } from "@/lib/firebase";
 import { createUserProfile } from "./firestore";
+import { ref, set, onDisconnect, serverTimestamp } from "firebase/database";
+import { doc, setDoc } from "firebase/firestore";
 
 export const signUp = async (email: string, password: string, displayName: string) => {
   try {
@@ -21,13 +24,28 @@ export const signUp = async (email: string, password: string, displayName: strin
       
       // Create user profile in Firestore
       await createUserProfile(user.uid, {
+        userId: user.uid,
         displayName,
         email,
         photoURL: null,
         headline: "",
         location: "",
         bio: "",
-        connectionCount: 0
+        connectionCount: 0,
+        createdAt: new Date(),
+      });
+      
+      // Set user presence in Realtime Database
+      const userStatusRef = ref(database, `status/${user.uid}`);
+      await set(userStatusRef, {
+        state: 'online',
+        lastChanged: serverTimestamp(),
+      });
+      
+      // Set up disconnect hook
+      onDisconnect(userStatusRef).set({
+        state: 'offline',
+        lastChanged: serverTimestamp(),
       });
       
       // Send email verification
@@ -44,7 +62,24 @@ export const signUp = async (email: string, password: string, displayName: strin
 export const signIn = async (email: string, password: string) => {
   try {
     const userCredential = await signInWithEmailAndPassword(auth, email, password);
-    return { user: userCredential.user };
+    const user = userCredential.user;
+    
+    // Update user presence in Realtime Database
+    if (user) {
+      const userStatusRef = ref(database, `status/${user.uid}`);
+      await set(userStatusRef, {
+        state: 'online',
+        lastChanged: serverTimestamp(),
+      });
+      
+      // Set up disconnect hook
+      onDisconnect(userStatusRef).set({
+        state: 'offline',
+        lastChanged: serverTimestamp(),
+      });
+    }
+    
+    return { user };
   } catch (error) {
     console.error("Error during sign in:", error);
     throw error;
@@ -53,6 +88,17 @@ export const signIn = async (email: string, password: string) => {
 
 export const signOut = async () => {
   try {
+    const user = auth.currentUser;
+    
+    // Update presence status before signing out
+    if (user) {
+      const userStatusRef = ref(database, `status/${user.uid}`);
+      await set(userStatusRef, {
+        state: 'offline',
+        lastChanged: serverTimestamp(),
+      });
+    }
+    
     await firebaseSignOut(auth);
     return true;
   } catch (error) {
@@ -69,4 +115,18 @@ export const resetPassword = async (email: string) => {
     console.error("Error sending password reset email:", error);
     throw error;
   }
+};
+
+export const getCurrentUser = () => {
+  return new Promise((resolve, reject) => {
+    const unsubscribe = onAuthStateChanged(auth, 
+      (user) => {
+        unsubscribe();
+        resolve(user);
+      },
+      (error) => {
+        reject(error);
+      }
+    );
+  });
 };

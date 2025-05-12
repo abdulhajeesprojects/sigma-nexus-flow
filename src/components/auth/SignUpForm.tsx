@@ -1,13 +1,11 @@
 
 import { useState } from "react";
-import { createUserWithEmailAndPassword, updateProfile } from "firebase/auth";
-import { doc, setDoc } from "firebase/firestore";
-import { auth, firestore } from "@/lib/firebase";
 import { useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
+import { signUp } from "@/services/auth";
 
 interface SignUpFormProps {
   onSwitch: () => void;
@@ -26,35 +24,12 @@ const SignUpForm = ({ onSwitch }: SignUpFormProps) => {
     setLoading(true);
     
     try {
-      const userCredential = await createUserWithEmailAndPassword(auth, email, password);
-      const user = userCredential.user;
-      
-      // Update the user profile
-      await updateProfile(user, {
-        displayName: fullName
-      });
-      
-      // Create user document in Firestore
-      await setDoc(doc(firestore, "users", user.uid), {
-        uid: user.uid,
-        displayName: fullName,
-        email: email,
-        photoURL: null,
-        createdAt: new Date(),
-        headline: "",
-        bio: "",
-        location: "",
-        skills: [],
-        education: [],
-        experience: []
-      });
-      
+      await signUp(email, password, fullName);
       toast({
         title: "Account created!",
         description: "Welcome to SiGMA Hub! Let's set up your profile.",
       });
-      
-      navigate("/onboarding");
+      // Auth state listener in Layout will handle navigation
     } catch (error: any) {
       toast({
         title: "Sign Up Failed",

@@ -1,12 +1,11 @@
 
 import { useState } from "react";
-import { signInWithEmailAndPassword } from "firebase/auth";
-import { auth } from "@/lib/firebase";
 import { useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
+import { signIn, resetPassword } from "@/services/auth";
 
 interface SignInFormProps {
   onSwitch: () => void;
@@ -24,12 +23,12 @@ const SignInForm = ({ onSwitch }: SignInFormProps) => {
     setLoading(true);
     
     try {
-      await signInWithEmailAndPassword(auth, email, password);
+      await signIn(email, password);
       toast({
         title: "Welcome back! 🎉",
         description: "Successfully signed in to SiGMA Hub",
       });
-      navigate("/feed");
+      // Instead of navigate, let the auth listener in Layout handle redirection
     } catch (error: any) {
       toast({
         title: "Sign In Failed",
@@ -38,6 +37,31 @@ const SignInForm = ({ onSwitch }: SignInFormProps) => {
       });
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleResetPassword = async () => {
+    if (!email) {
+      toast({
+        title: "Email Required",
+        description: "Please enter your email address to reset your password",
+        variant: "destructive",
+      });
+      return;
+    }
+    
+    try {
+      await resetPassword(email);
+      toast({
+        title: "Password Reset Email Sent",
+        description: "Check your email for instructions to reset your password",
+      });
+    } catch (error: any) {
+      toast({
+        title: "Password Reset Failed",
+        description: error.message,
+        variant: "destructive",
+      });
     }
   };
 
@@ -77,7 +101,7 @@ const SignInForm = ({ onSwitch }: SignInFormProps) => {
             </label>
             <button
               type="button"
-              onClick={() => toast({ title: "Feature coming soon", description: "Password reset feature will be available soon" })}
+              onClick={handleResetPassword}
               className="text-sm text-sigma-blue dark:text-sigma-purple hover:underline"
             >
               Forgot password?

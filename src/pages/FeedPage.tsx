@@ -1,12 +1,23 @@
 
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { collection, query, orderBy, limit, getDocs, where, startAfter, 
-  QueryDocumentSnapshot, DocumentData } from "firebase/firestore";
+import { 
+  collection, 
+  query, 
+  orderBy, 
+  limit, 
+  getDocs, 
+  where, 
+  startAfter,
+  QueryDocumentSnapshot, 
+  DocumentData,
+  onSnapshot
+} from "firebase/firestore";
 import { firestore, auth } from "@/lib/firebase";
 import CreatePost from "@/components/posts/CreatePost";
 import PostItem from "@/components/posts/PostItem";
 import { Button } from "@/components/ui/button";
+import { useToast } from "@/hooks/use-toast";
 
 interface Post {
   id: string;
@@ -31,46 +42,125 @@ const FeedPage = () => {
   const [loadingMore, setLoadingMore] = useState(false);
   const [noMorePosts, setNoMorePosts] = useState(false);
   const navigate = useNavigate();
+  const { toast } = useToast();
   const postsPerPage = 5;
 
-  const fetchPosts = async (lastDoc?: QueryDocumentSnapshot<DocumentData> | null) => {
-    if (!auth.currentUser) return;
+  // Set up real-time listener for posts
+  useEffect(() => {
+    if (!auth.currentUser) {
+      return;
+    }
+
+    setLoading(true);
+    
+    // Create query for fetching posts in real-time
+    const postsQuery = query(
+      collection(firestore, "posts"),
+      orderBy("createdAt", "desc"),
+      limit(postsPerPage)
+    );
+    
+    // Set up real-time listener
+    const unsubscribe = onSnapshot(postsQuery, async (snapshot) => {
+      try {
+        // Set the last document for pagination
+        const lastVisibleDoc = snapshot.docs[snapshot.docs.length - 1];
+        setLastVisible(lastVisibleDoc);
+        
+        if (snapshot.empty) {
+          setPosts([]);
+          setNoMorePosts(true);
+          setLoading(false);
+          return;
+        }
+        
+        // Get user data for each post
+        const postsWithAuthor = await Promise.all(
+          snapshot.docs.map(async (doc) => {
+            const postData = doc.data() as Omit<Post, 'id'>;
+            const post: Post = { 
+              id: doc.id,
+              userId: postData.userId,
+              content: postData.content,
+              imageUrl: postData.imageUrl,
+              likes: postData.likes,
+              comments: postData.comments,
+              shares: postData.shares,
+              createdAt: postData.createdAt,
+            };
+            
+            // Get author data
+            try {
+              const userDoc = await getDocs(
+                query(collection(firestore, "users"), where("userId", "==", post.userId))
+              );
+              
+              if (!userDoc.empty) {
+                const userData = userDoc.docs[0].data();
+                post.author = {
+                  displayName: userData.displayName || "Unknown User",
+                  headline: userData.headline || "",
+                  photoURL: userData.photoURL || null
+                };
+              }
+            } catch (error) {
+              console.error("Error fetching user data for post:", error);
+            }
+            
+            return post;
+          })
+        );
+        
+        setPosts(postsWithAuthor);
+      } catch (error) {
+        console.error("Error in posts listener:", error);
+        toast({
+          title: "Error",
+          description: "Could not load posts. Please try again later.",
+          variant: "destructive",
+        });
+      } finally {
+        setLoading(false);
+      }
+    }, (error) => {
+      console.error("Posts subscription error:", error);
+      setLoading(false);
+      toast({
+        title: "Error",
+        description: "Could not subscribe to posts feed.",
+        variant: "destructive",
+      });
+    });
+
+    return () => unsubscribe();
+  }, [toast]);
+
+  const fetchMorePosts = async () => {
+    if (!lastVisible || loadingMore || noMorePosts) return;
 
     try {
-      // Create query for fetching posts
-      let postsQuery;
+      setLoadingMore(true);
       
-      if (lastDoc) {
-        postsQuery = query(
-          collection(firestore, "posts"),
-          orderBy("createdAt", "desc"),
-          startAfter(lastDoc),
-          limit(postsPerPage)
-        );
-        setLoadingMore(true);
-      } else {
-        postsQuery = query(
-          collection(firestore, "posts"),
-          orderBy("createdAt", "desc"),
-          limit(postsPerPage)
-        );
-      }
+      const postsQuery = query(
+        collection(firestore, "posts"),
+        orderBy("createdAt", "desc"),
+        startAfter(lastVisible),
+        limit(postsPerPage)
+      );
       
       const postsSnapshot = await getDocs(postsQuery);
       
-      // Set the last document for pagination
-      const lastVisible = postsSnapshot.docs[postsSnapshot.docs.length - 1];
-      
       if (postsSnapshot.empty) {
         setNoMorePosts(true);
-        setLoadingMore(false);
         return;
       }
       
-      setLastVisible(lastVisible);
+      // Set the last document for pagination
+      const lastVisibleDoc = postsSnapshot.docs[postsSnapshot.docs.length - 1];
+      setLastVisible(lastVisibleDoc);
       
       // Get user data for each post
-      const postsWithAuthor = await Promise.all(
+      const morePosts = await Promise.all(
         postsSnapshot.docs.map(async (doc) => {
           const postData = doc.data() as Omit<Post, 'id'>;
           const post: Post = { 
@@ -106,42 +196,37 @@ const FeedPage = () => {
         })
       );
       
-      if (lastDoc) {
-        setPosts(prev => [...prev, ...postsWithAuthor]);
-      } else {
-        setPosts(postsWithAuthor);
-      }
+      setPosts(prev => [...prev, ...morePosts]);
     } catch (error) {
-      console.error("Error fetching posts:", error);
+      console.error("Error loading more posts:", error);
+      toast({
+        title: "Error",
+        description: "Could not load more posts. Please try again later.",
+        variant: "destructive",
+      });
     } finally {
-      setLoading(false);
       setLoadingMore(false);
     }
   };
 
+  // Check authentication status
   useEffect(() => {
     const unsubscribe = auth.onAuthStateChanged((user) => {
       if (!user) {
         navigate("/auth");
-        return;
       }
-      fetchPosts();
     });
 
     return () => unsubscribe();
   }, [navigate]);
 
-  const handleLoadMore = () => {
-    if (lastVisible) {
-      fetchPosts(lastVisible);
-    }
-  };
-
   const handleRefreshPosts = () => {
-    setPosts([]);
-    setLastVisible(null);
-    setNoMorePosts(false);
-    fetchPosts();
+    // The real-time listener will handle updates automatically
+    // This is just for manual refresh if needed
+    toast({
+      title: "Feed refreshed",
+      description: "Your feed has been updated with the latest posts"
+    });
   };
 
   if (loading) {
@@ -178,7 +263,7 @@ const FeedPage = () => {
               {!noMorePosts && (
                 <div className="flex justify-center pb-6">
                   <Button
-                    onClick={handleLoadMore}
+                    onClick={fetchMorePosts}
                     disabled={loadingMore}
                     variant="outline"
                   >
