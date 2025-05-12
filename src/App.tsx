@@ -1,4 +1,3 @@
-
 import React, { useEffect, Suspense } from "react";
 import { Routes, Route, useNavigate, useLocation } from "react-router-dom";
 import HomePage from "./pages/HomePage";
@@ -21,7 +20,7 @@ import { Toaster } from "@/components/ui/sonner";
 import { ThemeProvider } from "./providers/ThemeProvider";
 import { AuthProvider } from "./contexts/AuthContext";
 import "./App.css";
-import { toast } from "@/hooks/use-toast";
+import { toast } from "sonner";
 import { auth } from "@/lib/firebase";
 import { onAuthStateChanged } from "firebase/auth";
 import NavbarActions from "@/components/layout/Navbar";
@@ -99,9 +98,7 @@ function App() {
     const unsubscribe = onAuthStateChanged(auth, (user) => {
       if (!user && !['/auth', '/about', '/features', '/pricing', '/support'].includes(location.pathname)) {
         navigate("/auth");
-        toast({
-          description: "Please sign in to continue"
-        });
+        toast("Please sign in to continue");
       }
     });
 

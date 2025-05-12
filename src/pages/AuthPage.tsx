@@ -1,8 +1,7 @@
-
 import { useState, useEffect } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
-import { toast } from "@/hooks/use-toast";
+import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -32,13 +31,9 @@ const AuthPage = () => {
     setIsLoading(true);
     try {
       await signIn(email, password);
-      toast({
-        description: "You have successfully signed in."
-      });
+      toast("You have successfully signed in.");
     } catch (error) {
-      toast({
-        description: error instanceof Error ? error.message : "Failed to sign in"
-      });
+      toast(error instanceof Error ? error.message : "Failed to sign in");
     } finally {
       setIsLoading(false);
     }
@@ -49,13 +44,9 @@ const AuthPage = () => {
     setIsLoading(true);
     try {
       await signUp(email, password, name);
-      toast({
-        description: "Your account has been created successfully."
-      });
+      toast("Your account has been created successfully.");
     } catch (error) {
-      toast({
-        description: error instanceof Error ? error.message : "Failed to create account"
-      });
+      toast(error instanceof Error ? error.message : "Failed to create account");
     } finally {
       setIsLoading(false);
     }

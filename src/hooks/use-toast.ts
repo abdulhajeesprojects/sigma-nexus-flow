@@ -1,47 +1,18 @@
-
-// Import from the shadcn implementation
-import { Toast, ToastActionElement, ToastProps } from "@/components/ui/toast";
 import { toast as shadowToast } from "sonner";
 
-const TOAST_LIMIT = 10;
-const TOAST_REMOVE_DELAY = 1000;
+// Re-export directly from sonner
+export { toast } from "sonner";
 
-type ToasterToast = ToastProps & {
-  id: string;
-  title?: React.ReactNode;
-  description?: React.ReactNode;
-  action?: ToastActionElement;
-};
-
-const actionTypes = {
-  ADD_TOAST: "ADD_TOAST",
-  UPDATE_TOAST: "UPDATE_TOAST",
-  DISMISS_TOAST: "DISMISS_TOAST",
-  REMOVE_TOAST: "REMOVE_TOAST",
-} as const;
-
-let count = 0;
-const toasts: ToasterToast[] = [];
-
-const useToast = () => {
+// Keep basic toast utility function for compatibility
+export const useToast = () => {
   return {
-    toast: ({ ...props }: Omit<ToasterToast, "id">) => {
-      const id = String(Date.now());
-      shadowToast(props.title as string, {
-        id,
-        description: props.description,
-        // Remove the variant property as it's not supported
-      });
-      return { id };
-    },
+    toast: shadowToast,
     dismiss: (toastId?: string) => {
-      shadowToast.dismiss(toastId);
+      if (toastId) shadowToast.dismiss(toastId);
+      else shadowToast.dismiss();
     },
-    toasts: [] as ToasterToast[],
+    toasts: [] as any[]
   };
 };
-
-// Re-export with our own implementation
-export { useToast, shadowToast as toast };
 
 export default useToast;

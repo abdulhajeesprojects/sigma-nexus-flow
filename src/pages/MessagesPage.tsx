@@ -9,7 +9,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { useAuth } from "@/contexts/AuthContext";
 import { getOrCreateConversation, sendMessage } from "@/services/firestore";
 import { getAvatarForUser } from "@/services/avatars";
-import { useToast } from "@/hooks/use-toast";
+import { toast } from "sonner";
 import { format } from 'date-fns';
 import {
   collection,
@@ -25,7 +25,6 @@ import {
 } from "firebase/firestore";
 import { firestore, auth } from "@/lib/firebase";
 import { Message } from "@/types/message";
-// Fix the conversation type import
 import { Conversation } from "@/types/conversation";
 import { getConversations, saveConversations, saveMessage, getMessages, syncMessages } from "@/services/localStorage";
 import { Link } from 'react-router-dom';
@@ -78,7 +77,6 @@ const MessagesPage = () => {
   const [sending, setSending] = useState(false);
   const [searchParams] = useSearchParams();
   const { currentUser } = useAuth();
-  const { toast } = useToast();
   const navigate = useNavigate();
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
@@ -110,17 +108,13 @@ const MessagesPage = () => {
           setSelectedConversationId(conversation.id);
         } catch (error) {
           console.error("Error fetching or creating conversation:", error);
-          toast({
-            title: "Error",
-            description: "Failed to load conversation",
-            variant: "destructive",
-          });
+          toast("Failed to load conversation");
         }
       }
     };
 
     fetchInitialConversation();
-  }, [searchParams, currentUser, toast]);
+  }, [searchParams, currentUser]);
 
   useEffect(() => {
     if (!currentUser) return;
@@ -171,7 +165,9 @@ const MessagesPage = () => {
       Promise.all(
         updatedConversations.map(async (conversation) => {
           const otherUserId = conversation.participants.find(uid => uid !== currentUser.uid);
-          const userDoc = await firestore.collection("users").doc(otherUserId).get();
+          // Fixed: Use firestore directly instead of accessing collection
+          const userDocRef = doc(firestore, "users", otherUserId || "");
+          const userDoc = await getDoc(userDocRef);
           const userData = userDoc.data();
 
           return {
@@ -192,18 +188,14 @@ const MessagesPage = () => {
       });
     }, (error) => {
       console.error("Error fetching conversations:", error);
-      toast({
-        title: "Error",
-        description: "Failed to load conversations",
-        variant: "destructive",
-      });
+      toast("Failed to load conversations");
       setLoading(false);
     });
 
     return () => {
       unsubscribeConversations();
     };
-  }, [currentUser, toast]);
+  }, [currentUser]);
 
   useEffect(() => {
     if (!currentUser || !selectedConversationId) return;
@@ -239,11 +231,7 @@ const MessagesPage = () => {
       setMessages(mergedMessages);
     }, (error) => {
       console.error("Error fetching messages:", error);
-      toast({
-        title: "Error",
-        description: "Failed to load messages",
-        variant: "destructive",
-      });
+      toast("Failed to load messages");
     });
 
     // Fix markMessagesAsRead function
@@ -282,7 +270,7 @@ const MessagesPage = () => {
     return () => {
       unsubscribeMessages();
     };
-  }, [currentUser, selectedConversationId, toast]);
+  }, [currentUser, selectedConversationId]);
 
   const handleSendMessage = async () => {
     if (!newMessage.trim() || !currentUser || !selectedConversationId) return;
@@ -295,11 +283,7 @@ const MessagesPage = () => {
 
       if (!receiverId) {
         console.error("Receiver ID not found");
-        toast({
-          title: "Error",
-          description: "Could not find receiver",
-          variant: "destructive",
-        });
+        toast("Could not find receiver");
         return;
       }
 
@@ -324,11 +308,7 @@ const MessagesPage = () => {
       }
     } catch (error) {
       console.error("Error sending message:", error);
-      toast({
-        title: "Error",
-        description: "Failed to send message",
-        variant: "destructive",
-      });
+      toast("Failed to send message");
     } finally {
       setSending(false);
     }
@@ -360,17 +340,10 @@ const MessagesPage = () => {
       setSelectedConversationId(null);
       setMessages([]);
   
-      toast({
-        title: "Conversation Deleted",
-        description: "The conversation has been successfully deleted.",
-      });
+      toast("The conversation has been successfully deleted.");
     } catch (error) {
       console.error('Error deleting conversation:', error);
-      toast({
-        title: "Error",
-        description: "Failed to delete the conversation.",
-        variant: "destructive",
-      });
+      toast("Failed to delete the conversation.");
     }
   };
 

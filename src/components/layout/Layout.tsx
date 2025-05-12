@@ -1,9 +1,8 @@
-
 import { useState, useEffect } from "react";
 import { Outlet, useNavigate, useLocation } from "react-router-dom";
 import { motion } from "framer-motion";
 import { useAuth } from "@/contexts/AuthContext";
-import { toast } from "@/hooks/use-toast";
+import { toast } from "sonner";
 import Navbar from "./Navbar";
 import Footer from "./Footer";
 
@@ -20,9 +19,7 @@ const Layout = () => {
   useEffect(() => {
     if (!loading && !currentUser && !PUBLIC_PAGES.includes(location.pathname)) {
       navigate("/auth");
-      toast({
-        description: "Please sign in to continue"
-      });
+      toast("Please sign in to continue");
     }
   }, [currentUser, loading, location.pathname, navigate]);
 
@@ -69,7 +66,7 @@ const Layout = () => {
       </div>
     );
   }
-
+  
   return (
     <div className="min-h-screen bg-background flex flex-col">
       <Navbar />
