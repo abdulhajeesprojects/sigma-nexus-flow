@@ -22,12 +22,15 @@ export function ThemeProvider({
   storageKey = 'sigma-theme',
   ...props
 }: ThemeProviderProps) {
-  const [theme, setTheme] = useState<Theme>(() => {
-    const storedTheme = typeof window !== 'undefined' 
-      ? localStorage.getItem(storageKey) as Theme | null
-      : null;
-    return storedTheme || defaultTheme;
-  });
+  const [theme, setTheme] = useState<Theme>(
+    () => {
+      if (typeof window !== 'undefined') {
+        const storedTheme = localStorage.getItem(storageKey) as Theme | null;
+        return storedTheme || defaultTheme;
+      }
+      return defaultTheme;
+    }
+  );
 
   useEffect(() => {
     const root = window.document.documentElement;
@@ -47,9 +50,7 @@ export function ThemeProvider({
   }, [theme]);
 
   useEffect(() => {
-    if (theme) {
-      localStorage.setItem(storageKey, theme);
-    }
+    localStorage.setItem(storageKey, theme);
   }, [theme, storageKey]);
 
   const value = {
