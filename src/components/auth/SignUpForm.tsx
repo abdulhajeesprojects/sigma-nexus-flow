@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
 import { signUp } from "@/services/auth";
+import { Eye, EyeOff } from "lucide-react";
 
 interface SignUpFormProps {
   onSwitch: () => void;
@@ -15,25 +16,40 @@ const SignUpForm = ({ onSwitch }: SignUpFormProps) => {
   const [fullName, setFullName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
   const [loading, setLoading] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
   const navigate = useNavigate();
   const { toast } = useToast();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    
+    if (password !== confirmPassword) {
+      toast({
+        title: "Passwords don't match",
+        description: "Please make sure your passwords match",
+        variant: "destructive",
+      });
+      return;
+    }
+    
     setLoading(true);
     
     try {
-      await signUp(email, password, fullName);
-      toast({
-        title: "Account created!",
-        description: "Welcome to SiGMA Hub! Let's set up your profile.",
-      });
-      // Auth state listener in Layout will handle navigation
+      const { user } = await signUp(email, password, fullName);
+      
+      if (user) {
+        toast({
+          title: "Account created!",
+          description: "Welcome to SiGMA Hub! Let's set up your profile.",
+        });
+        navigate("/profile");
+      }
     } catch (error: any) {
       toast({
         title: "Sign Up Failed",
-        description: error.message,
+        description: error.message || "There was a problem creating your account",
         variant: "destructive",
       });
     } finally {
@@ -88,17 +104,42 @@ const SignUpForm = ({ onSwitch }: SignUpFormProps) => {
           <label htmlFor="password" className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">
             Password
           </label>
+          <div className="relative">
+            <Input
+              id="password"
+              type={showPassword ? "text" : "password"}
+              placeholder="••••••••"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              className="w-full pr-10"
+              required
+              minLength={6}
+            />
+            <button
+              type="button"
+              onClick={() => setShowPassword(!showPassword)}
+              className="absolute right-3 top-1/2 transform -translate-y-1/2 text-muted-foreground hover:text-foreground"
+            >
+              {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+            </button>
+          </div>
+          <p className="text-xs text-muted-foreground">Password must be at least 6 characters long</p>
+        </div>
+        
+        <div className="space-y-2">
+          <label htmlFor="confirmPassword" className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">
+            Confirm Password
+          </label>
           <Input
-            id="password"
-            type="password"
+            id="confirmPassword"
+            type={showPassword ? "text" : "password"}
             placeholder="••••••••"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
+            value={confirmPassword}
+            onChange={(e) => setConfirmPassword(e.target.value)}
             className="w-full"
             required
             minLength={6}
           />
-          <p className="text-xs text-muted-foreground">Password must be at least 6 characters long</p>
         </div>
         
         <Button 

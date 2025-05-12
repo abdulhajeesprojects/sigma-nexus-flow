@@ -6,7 +6,8 @@ import {
   sendEmailVerification,
   sendPasswordResetEmail,
   signOut as firebaseSignOut,
-  onAuthStateChanged
+  onAuthStateChanged,
+  User
 } from "firebase/auth";
 import { auth, firestore, database } from "@/lib/firebase";
 import { createUserProfile } from "./firestore";
@@ -118,8 +119,9 @@ export const resetPassword = async (email: string) => {
 };
 
 export const getCurrentUser = () => {
-  return new Promise((resolve, reject) => {
-    const unsubscribe = onAuthStateChanged(auth, 
+  return new Promise<User | null>((resolve, reject) => {
+    const unsubscribe = onAuthStateChanged(
+      auth, 
       (user) => {
         unsubscribe();
         resolve(user);
@@ -129,4 +131,26 @@ export const getCurrentUser = () => {
       }
     );
   });
+};
+
+export const updateUserPresence = async (userId: string, status: 'online' | 'offline' | 'away') => {
+  try {
+    const userStatusRef = ref(database, `status/${userId}`);
+    await set(userStatusRef, {
+      state: status,
+      lastChanged: serverTimestamp(),
+    });
+    
+    if (status === 'online') {
+      onDisconnect(userStatusRef).set({
+        state: 'offline',
+        lastChanged: serverTimestamp(),
+      });
+    }
+    
+    return true;
+  } catch (error) {
+    console.error("Error updating user presence:", error);
+    return false;
+  }
 };

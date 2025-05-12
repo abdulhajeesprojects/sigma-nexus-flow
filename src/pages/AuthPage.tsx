@@ -5,12 +5,14 @@ import { motion, AnimatePresence } from "framer-motion";
 import { auth } from "@/lib/firebase";
 import SignInForm from "@/components/auth/SignInForm";
 import SignUpForm from "@/components/auth/SignUpForm";
+import { useToast } from "@/hooks/use-toast";
 
 const AuthPage = () => {
   const [isSignUp, setIsSignUp] = useState(false);
   const [loading, setLoading] = useState(true);
   const navigate = useNavigate();
   const location = useLocation();
+  const { toast } = useToast();
 
   useEffect(() => {
     // Check if the URL has a signup parameter
@@ -23,13 +25,17 @@ const AuthPage = () => {
     const unsubscribe = auth.onAuthStateChanged((user) => {
       if (user) {
         // User is signed in, redirect to feed
+        toast({
+          title: "Already signed in",
+          description: "You're already logged in to your account",
+        });
         navigate("/feed");
       }
       setLoading(false);
     });
 
     return () => unsubscribe();
-  }, [location.search, navigate]);
+  }, [location.search, navigate, toast]);
 
   if (loading) {
     return (

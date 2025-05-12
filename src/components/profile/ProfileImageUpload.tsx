@@ -4,6 +4,9 @@ import { Camera } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { uploadProfileImage } from "@/services/firestore";
 import { useToast } from "@/hooks/use-toast";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { updateProfile } from "firebase/auth";
+import { auth } from "@/lib/firebase";
 
 interface ProfileImageUploadProps {
   userId: string;
@@ -42,6 +45,13 @@ const ProfileImageUpload = ({ userId, currentPhotoURL, onPhotoUpdated }: Profile
     
     try {
       const photoURL = await uploadProfileImage(userId, file);
+      
+      // Also update the auth profile
+      const currentUser = auth.currentUser;
+      if (currentUser) {
+        await updateProfile(currentUser, { photoURL });
+      }
+      
       onPhotoUpdated(photoURL);
       
       toast({
@@ -60,15 +70,31 @@ const ProfileImageUpload = ({ userId, currentPhotoURL, onPhotoUpdated }: Profile
     }
   };
 
+  const getInitial = (name: string | null | undefined) => {
+    if (!name) return "?";
+    return name.charAt(0).toUpperCase();
+  };
+
+  const userInitial = getInitial(auth.currentUser?.displayName);
+
   return (
     <div className="relative">
-      <div className="w-24 h-24 rounded-full bg-sigma-blue/20 flex items-center justify-center text-sigma-blue text-4xl font-bold border-4 border-background overflow-hidden">
+      <Avatar className="w-24 h-24 border-4 border-background">
         {currentPhotoURL ? (
-          <img src={currentPhotoURL} alt="Profile" className="w-full h-full object-cover" />
-        ) : (
-          <span>?</span>
-        )}
-      </div>
+          <AvatarImage 
+            src={currentPhotoURL} 
+            alt="Profile" 
+            className="object-cover"
+            onError={(e) => {
+              // Handle broken image
+              (e.target as HTMLImageElement).style.display = 'none';
+            }} 
+          />
+        ) : null}
+        <AvatarFallback className="text-4xl bg-sigma-blue/20 text-sigma-blue">
+          {userInitial}
+        </AvatarFallback>
+      </Avatar>
       
       <label htmlFor="profile-image-upload" className="absolute -bottom-2 -right-2 bg-sigma-blue text-white rounded-full p-2 cursor-pointer shadow-md hover:bg-sigma-purple transition-colors">
         <Camera className="w-4 h-4" />

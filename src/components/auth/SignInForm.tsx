@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
 import { signIn, resetPassword } from "@/services/auth";
+import { Eye, EyeOff } from "lucide-react";
 
 interface SignInFormProps {
   onSwitch: () => void;
@@ -15,6 +16,7 @@ const SignInForm = ({ onSwitch }: SignInFormProps) => {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
   const navigate = useNavigate();
   const { toast } = useToast();
 
@@ -23,16 +25,19 @@ const SignInForm = ({ onSwitch }: SignInFormProps) => {
     setLoading(true);
     
     try {
-      await signIn(email, password);
-      toast({
-        title: "Welcome back! 🎉",
-        description: "Successfully signed in to SiGMA Hub",
-      });
-      // Instead of navigate, let the auth listener in Layout handle redirection
+      const { user } = await signIn(email, password);
+      
+      if (user) {
+        toast({
+          title: "Welcome back! 🎉",
+          description: "Successfully signed in to SiGMA Hub",
+        });
+        navigate("/feed");
+      }
     } catch (error: any) {
       toast({
         title: "Sign In Failed",
-        description: error.message,
+        description: error.message || "Please check your credentials and try again",
         variant: "destructive",
       });
     } finally {
@@ -59,7 +64,7 @@ const SignInForm = ({ onSwitch }: SignInFormProps) => {
     } catch (error: any) {
       toast({
         title: "Password Reset Failed",
-        description: error.message,
+        description: error.message || "Please check your email and try again",
         variant: "destructive",
       });
     }
@@ -107,15 +112,24 @@ const SignInForm = ({ onSwitch }: SignInFormProps) => {
               Forgot password?
             </button>
           </div>
-          <Input
-            id="password"
-            type="password"
-            placeholder="••••••••"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            className="w-full"
-            required
-          />
+          <div className="relative">
+            <Input
+              id="password"
+              type={showPassword ? "text" : "password"}
+              placeholder="••••••••"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              className="w-full pr-10"
+              required
+            />
+            <button
+              type="button"
+              onClick={() => setShowPassword(!showPassword)}
+              className="absolute right-3 top-1/2 transform -translate-y-1/2 text-muted-foreground hover:text-foreground"
+            >
+              {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+            </button>
+          </div>
         </div>
         
         <Button 
