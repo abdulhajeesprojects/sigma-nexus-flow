@@ -1,3 +1,4 @@
+
 import { useState, useEffect } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
@@ -32,14 +33,11 @@ const AuthPage = () => {
     try {
       await signIn(email, password);
       toast({
-        title: "Welcome back!",
         description: "You have successfully signed in."
       });
     } catch (error) {
       toast({
-        title: "Error",
-        description: error instanceof Error ? error.message : "Failed to sign in",
-        variant: "destructive"
+        description: error instanceof Error ? error.message : "Failed to sign in"
       });
     } finally {
       setIsLoading(false);
@@ -52,14 +50,11 @@ const AuthPage = () => {
     try {
       await signUp(email, password, name);
       toast({
-        title: "Welcome!",
         description: "Your account has been created successfully."
       });
     } catch (error) {
       toast({
-        title: "Error",
-        description: error instanceof Error ? error.message : "Failed to create account",
-        variant: "destructive"
+        description: error instanceof Error ? error.message : "Failed to create account"
       });
     } finally {
       setIsLoading(false);

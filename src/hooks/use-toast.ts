@@ -30,7 +30,7 @@ const useToast = () => {
       shadowToast(props.title as string, {
         id,
         description: props.description,
-        variant: props.variant,
+        // Remove the variant property as it's not supported
       });
       return { id };
     },

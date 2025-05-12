@@ -100,9 +100,7 @@ function App() {
       if (!user && !['/auth', '/about', '/features', '/pricing', '/support'].includes(location.pathname)) {
         navigate("/auth");
         toast({
-          title: "Authentication Required",
-          description: "Please sign in to continue",
-          variant: "destructive"
+          description: "Please sign in to continue"
         });
       }
     });

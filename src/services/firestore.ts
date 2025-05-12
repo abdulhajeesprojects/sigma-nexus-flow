@@ -13,7 +13,7 @@ import {
   deleteDoc,
   getFirestore,
   orderBy,
-  limit,
+  limit as firestoreLimit,
   writeBatch
 } from "firebase/firestore";
 import { ref, uploadBytes, getDownloadURL, deleteObject } from "firebase/storage";
@@ -35,6 +35,9 @@ export interface UserProfile {
   username: string;
   createdAt: Date;
   updatedAt: Date;
+  interests?: string[];
+  connections?: string[];
+  posts?: string[];
 }
 
 // User related operations
@@ -113,7 +116,7 @@ export const uploadProfileImage = async (userId: string, file: File): Promise<st
   }
 };
 
-export const getAllUsers = async (limit = 50) => {
+export const getAllUsers = async (limitCount = 50) => {
   try {
     const currentUser = auth.currentUser;
     if (!currentUser) throw new Error("No authenticated user");
@@ -122,7 +125,7 @@ export const getAllUsers = async (limit = 50) => {
       collection(firestore, "users"),
       where("id", "!=", currentUser.uid),
       orderBy("id"),
-      limit
+      firestoreLimit(limitCount)
     );
     
     const usersSnapshot = await getDocs(usersQuery);
@@ -730,7 +733,7 @@ export const searchUsersByUsername = async (searchTerm: string): Promise<UserPro
     usersRef,
     where('username', '>=', searchTerm),
     where('username', '<=', searchTerm + '\uf8ff'),
-    limit(10)
+    firestoreLimit(10)
   );
 
   const querySnapshot = await getDocs(q);

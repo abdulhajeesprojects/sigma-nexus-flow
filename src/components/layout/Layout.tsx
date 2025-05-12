@@ -1,3 +1,4 @@
+
 import { useState, useEffect } from "react";
 import { Outlet, useNavigate, useLocation } from "react-router-dom";
 import { motion } from "framer-motion";
@@ -20,9 +21,7 @@ const Layout = () => {
     if (!loading && !currentUser && !PUBLIC_PAGES.includes(location.pathname)) {
       navigate("/auth");
       toast({
-        title: "Authentication Required",
-        description: "Please sign in to continue",
-        variant: "destructive"
+        description: "Please sign in to continue"
       });
     }
   }, [currentUser, loading, location.pathname, navigate]);

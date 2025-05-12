@@ -21,9 +21,9 @@ import {
   updateDoc,
   getDocs,
   serverTimestamp,
-  writeBatch, // Fix the batch issue by using writeBatch instead of batch
+  writeBatch,
 } from "firebase/firestore";
-import { firestore } from "@/lib/firebase";
+import { firestore, auth } from "@/lib/firebase";
 import { Message } from "@/types/message";
 // Fix the conversation type import
 import { Conversation } from "@/types/conversation";
@@ -83,6 +83,7 @@ const MessagesPage = () => {
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
+    // Fix the auth reference
     const checkAuth = auth.onAuthStateChanged((user) => {
       if (!user) {
         navigate("/auth");
@@ -215,7 +216,7 @@ const MessagesPage = () => {
 
     loadMessagesFromLocalStorage();
 
-    // Set up Firestore listener for messages
+    // Fix firestore collection reference
     const messagesQuery = query(
       collection(firestore, "messages"),
       where("conversationId", "==", selectedConversationId),
@@ -245,7 +246,7 @@ const MessagesPage = () => {
       });
     });
 
-    // Mark messages as read when the conversation is selected
+    // Fix markMessagesAsRead function
     const markMessagesAsRead = async (conversationId: string, senderId: string) => {
       try {
         const batch = writeBatch(firestore);
@@ -258,8 +259,8 @@ const MessagesPage = () => {
     
         const messagesSnapshot = await getDocs(messagesQuery);
     
-        messagesSnapshot.docs.forEach(doc => {
-          const messageRef = firestore.collection("messages").doc(doc.id);
+        messagesSnapshot.docs.forEach(docSnapshot => {
+          const messageRef = doc(firestore, "messages", docSnapshot.id);
           batch.update(messageRef, { read: true });
         });
     
