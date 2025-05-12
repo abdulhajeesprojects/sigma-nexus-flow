@@ -1,6 +1,6 @@
 
+import React, { useEffect, Suspense } from "react";
 import { Routes, Route, useNavigate } from "react-router-dom";
-import { useEffect, Suspense, ErrorBoundary } from "react";
 import HomePage from "./pages/HomePage";
 import AboutPage from "./pages/AboutPage";
 import FeaturesPage from "./pages/FeaturesPage";
