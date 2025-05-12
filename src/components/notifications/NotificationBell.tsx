@@ -2,7 +2,7 @@
 import React, { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Bell } from "lucide-react";
-import { collection, query, where, orderBy, onSnapshot, doc, updateDoc, getDocs } from "firebase/firestore";
+import { collection, query, where, orderBy, onSnapshot, doc, updateDoc, getDocs, getDoc } from "firebase/firestore";
 import { firestore, auth } from "@/lib/firebase";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -55,7 +55,8 @@ const NotificationBell = () => {
         
         // Fetch sender details
         try {
-          const senderDoc = await firestore.collection("users").doc(notif.senderId).get();
+          const senderRef = doc(firestore, "users", notif.senderId);
+          const senderDoc = await getDoc(senderRef);
           if (senderDoc.exists()) {
             const senderData = senderDoc.data();
             notif.senderName = senderData?.displayName || "User";
