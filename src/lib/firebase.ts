@@ -10,7 +10,7 @@ const firebaseConfig = {
   apiKey: "AIzaSyCeJxZ3Gsbl4R8Ab-bpTSnaDgj6slsTz88",
   authDomain: "ah-sigma-hub.firebaseapp.com",
   projectId: "ah-sigma-hub",
-  storageBucket: "ah-sigma-hub.firebasestorage.app",
+  storageBucket: "ah-sigma-hub.appspot.com", // Fixed the storage bucket URL
   messagingSenderId: "357310750142",
   appId: "1:357310750142:web:f20481c423f56262572def",
   measurementId: "G-2LKW0YXC63"
