@@ -1,3 +1,4 @@
+
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { collection, query, orderBy, limit, getDocs, where, startAfter, 
@@ -71,17 +72,27 @@ const FeedPage = () => {
       // Get user data for each post
       const postsWithAuthor = await Promise.all(
         postsSnapshot.docs.map(async (doc) => {
-          const postData = { id: doc.id, ...doc.data() } as Post;
+          const postData = doc.data() as Omit<Post, 'id'>;
+          const post: Post = { 
+            id: doc.id,
+            userId: postData.userId,
+            content: postData.content,
+            imageUrl: postData.imageUrl,
+            likes: postData.likes,
+            comments: postData.comments,
+            shares: postData.shares,
+            createdAt: postData.createdAt,
+          };
           
           // Get author data
           try {
             const userDoc = await getDocs(
-              query(collection(firestore, "users"), where("userId", "==", postData.userId))
+              query(collection(firestore, "users"), where("userId", "==", post.userId))
             );
             
             if (!userDoc.empty) {
               const userData = userDoc.docs[0].data();
-              postData.author = {
+              post.author = {
                 displayName: userData.displayName || "Unknown User",
                 headline: userData.headline || "",
                 photoURL: userData.photoURL || null
@@ -91,7 +102,7 @@ const FeedPage = () => {
             console.error("Error fetching user data for post:", error);
           }
           
-          return postData;
+          return post;
         })
       );
       
