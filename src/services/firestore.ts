@@ -92,7 +92,17 @@ export const getAllUsers = async (limit = 50) => {
     
     const usersSnapshot = await getDocs(usersQuery);
     
-    return usersSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+    return usersSnapshot.docs.map(doc => {
+      const data = doc.data();
+      return { 
+        id: doc.id, 
+        userId: data.userId,
+        displayName: data.displayName || "User",
+        headline: data.headline || "",
+        photoURL: data.photoURL || null,
+        ...data 
+      };
+    });
   } catch (error) {
     console.error("Error getting all users:", error);
     throw error;

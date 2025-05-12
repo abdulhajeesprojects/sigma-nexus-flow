@@ -135,6 +135,15 @@ const NetworkPage = () => {
         // Get all users for suggestions
         const allUsers = await getAllUsers();
         
+        // Make sure allUsers conforms to UserProfile type
+        const typedUsers: UserProfile[] = allUsers.map(user => ({
+          id: user.id || '',
+          userId: user.userId || '',
+          displayName: user.displayName || 'User',
+          headline: user.headline || '',
+          photoURL: user.photoURL
+        }));
+        
         // Filter out users that are already connected or have pending connections
         const connectedIds = [...connectionsData.map(c => c.connectionId), user.uid];
         const receivedPendingUserIds = receivedConnections
@@ -142,7 +151,7 @@ const NetworkPage = () => {
           .map(c => c.userId);
         
         // Filter out users who sent you requests or are already connected
-        const filteredUsers = allUsers.filter(u => {
+        const filteredUsers = typedUsers.filter(u => {
           return (
             !connectedIds.includes(u.userId) && 
             !receivedPendingUserIds.includes(u.userId)
