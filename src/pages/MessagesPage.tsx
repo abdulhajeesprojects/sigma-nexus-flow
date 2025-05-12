@@ -1,3 +1,4 @@
+
 import { useState, useEffect, useRef } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { Button } from "@/components/ui/button";
@@ -5,7 +6,8 @@ import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Message } from "@/types/message";
-import { Conversation, saveMessages, saveConversations, getMessages, getConversations } from "@/services/localStorage";
+import { Conversation } from "@/types/conversation";
+import { getMessages, getConversations, saveMessages, saveConversations } from "@/services/localStorage";
 import { UserSearch } from '@/components/messages/UserSearch';
 import { Check, CheckCheck, Search, Send, MoreVertical, Paperclip, Smile, X, Reply, ThumbsUp } from "lucide-react";
 import gsap from "gsap";
@@ -15,6 +17,9 @@ import Pusher from 'pusher-js';
 import ChannelSubscription from '@/components/messages/ChannelSubscription';
 import { Badge } from "@/components/ui/badge";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { GlassCard } from "@/components/ui/glass-card";
+import { writeBatch, doc, collection, addDoc, updateDoc, serverTimestamp, getDoc } from "firebase/firestore";
+import { firestore } from "@/lib/firebase";
 
 gsap.registerPlugin(ScrollTrigger);
 
@@ -175,6 +180,47 @@ const MessagesPage = () => {
         read: false
       };
 
+      // Instead of using batch which doesn't exist directly on firestore, use writeBatch
+      const batch = writeBatch(firestore);
+      
+      // Create the message
+      const messageRef = doc(collection(firestore, "messages"));
+      batch.set(messageRef, {
+        conversationId: message.conversationId,
+        senderId: message.senderId,
+        receiverId: message.receiverId,
+        text: message.text,
+        read: false,
+        timestamp: serverTimestamp()
+      });
+      
+      // Update the conversation
+      if (selectedConversation.id.startsWith('conversation-')) {
+        // This is a local conversation, create it in Firestore first
+        const conversationRef = doc(collection(firestore, "conversations"));
+        batch.set(conversationRef, {
+          participants: selectedConversation.participants,
+          lastMessage: message.text,
+          lastMessageTime: serverTimestamp(),
+          createdAt: serverTimestamp(),
+          updatedAt: serverTimestamp()
+        });
+        
+        // Update the local conversation ID
+        message.conversationId = conversationRef.id;
+      } else {
+        // Update existing conversation
+        const conversationRef = doc(firestore, "conversations", selectedConversation.id);
+        batch.update(conversationRef, {
+          lastMessage: message.text,
+          lastMessageTime: serverTimestamp(),
+          updatedAt: serverTimestamp()
+        });
+      }
+      
+      // Commit the batch
+      await batch.commit();
+
       // Send message through Pusher
       const channel = pusherInstance.channel(selectedConversation.id);
       if (!channel) {
@@ -209,7 +255,7 @@ const MessagesPage = () => {
     }
   };
 
-  const handleUserSelect = (userId: string) => {
+  const handleUserSelect = async (userId: string) => {
     // Find existing conversation with this user
     const existingConversation = conversations.find(conv => 
       conv.participants.includes(userId) && conv.participants.includes(currentUser?.uid || '')
@@ -218,24 +264,41 @@ const MessagesPage = () => {
     if (existingConversation) {
       setSelectedConversation(existingConversation);
     } else {
-      // Create new conversation
-      const newConversation: Conversation = {
-        id: `conversation-${Date.now()}`,
-        participants: [currentUser?.uid || '', userId],
-        lastMessage: '',
-        lastMessageTime: new Date().toISOString(),
-        unreadCount: 0,
-        otherUser: {
-          id: userId,
-          displayName: 'New User', // This should be updated with actual user details
-          photoURL: null,
-          headline: ''
+      try {
+        // Fetch user details
+        const userDoc = await getDoc(doc(firestore, "users", userId));
+        if (!userDoc.exists()) {
+          throw new Error("User not found");
         }
-      };
+        
+        const userData = userDoc.data();
+        
+        // Create new conversation
+        const newConversation: Conversation = {
+          id: `conversation-${Date.now()}`,
+          participants: [currentUser?.uid || '', userId],
+          lastMessage: '',
+          lastMessageTime: new Date().toISOString(),
+          unreadCount: 0,
+          otherUser: {
+            id: userId,
+            displayName: userData.displayName || 'User',
+            photoURL: userData.photoURL || null,
+            headline: userData.headline || ''
+          }
+        };
 
-      setConversations([...conversations, newConversation]);
-      setSelectedConversation(newConversation);
-      saveConversations([...conversations, newConversation]);
+        setConversations([...conversations, newConversation]);
+        setSelectedConversation(newConversation);
+        saveConversations([...conversations, newConversation]);
+      } catch (error) {
+        console.error('Error creating conversation:', error);
+        toast({
+          title: "Error",
+          description: "Failed to create conversation",
+          variant: "destructive",
+        });
+      }
     }
   };
 
@@ -526,8 +589,11 @@ const MessagesPage = () => {
             </div>
           </>
         ) : (
-          <div className="text-center text-[#8696a0]">
-            <p>Select a conversation or start a new one</p>
+          <div className="text-center text-[#8696a0] p-4">
+            <GlassCard className="p-8">
+              <h3 className="text-xl font-medium mb-4">Welcome to Messages</h3>
+              <p>Select a conversation or start a new one</p>
+            </GlassCard>
           </div>
         )}
       </div>
@@ -536,3 +602,4 @@ const MessagesPage = () => {
 };
 
 export default MessagesPage;
+

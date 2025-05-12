@@ -1,3 +1,4 @@
+
 export interface Message {
   id: string;
   conversationId?: string;
@@ -6,4 +7,7 @@ export interface Message {
   text: string;
   timestamp: Date;
   read: boolean;
-} 
+  status?: 'sent' | 'delivered' | 'read';
+  reactions?: Record<string, string>;
+  replyTo?: Message;
+}
