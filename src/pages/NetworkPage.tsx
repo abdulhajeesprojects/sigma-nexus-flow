@@ -2,11 +2,13 @@
 import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
 import { useNavigate } from "react-router-dom";
-import { collection, query, getDocs, limit, where } from "firebase/firestore";
+import { collection, query, getDocs, limit, where, deleteDoc, doc } from "firebase/firestore";
 import { firestore, auth } from "@/lib/firebase";
 import { Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
+import { sendConnectionRequest, acceptConnectionRequest, rejectConnectionRequest } from "@/services/firestore";
+import { UserPlus, Check, X } from "lucide-react";
 
 interface Connection {
   id: string;
@@ -16,16 +18,20 @@ interface Connection {
   createdAt: any;
   name?: string;
   title?: string;
+  photoURL?: string;
 }
 
 interface UserProfile {
   id: string;
+  userId: string;
   displayName: string;
   headline?: string;
+  photoURL?: string;
 }
 
 const NetworkPage = () => {
   const [connections, setConnections] = useState<Connection[]>([]);
+  const [pendingConnections, setPendingConnections] = useState<Connection[]>([]);
   const [suggestedConnections, setSuggestedConnections] = useState<UserProfile[]>([]);
   const [loading, setLoading] = useState(true);
   const navigate = useNavigate();
@@ -44,7 +50,7 @@ const NetworkPage = () => {
         const connectionsQuery = query(
           collection(firestore, "connections"),
           where("userId", "==", user.uid),
-          limit(10)
+          limit(20)
         );
         
         const connectionsSnapshot = await getDocs(connectionsQuery);
@@ -53,18 +59,83 @@ const NetworkPage = () => {
           ...doc.data(),
         })) as Connection[];
         
-        setConnections(connectionsData);
+        // Separate accepted and pending connections
+        const acceptedConnections = connectionsData.filter(conn => conn.status === "accepted");
+        const pendingConnections = connectionsData.filter(conn => conn.status === "pending");
+        
+        // Fetch user details for connections
+        const connectionsWithDetails = await Promise.all(
+          acceptedConnections.map(async (connection) => {
+            try {
+              const userQuery = query(
+                collection(firestore, "users"),
+                where("userId", "==", connection.connectionId)
+              );
+              
+              const userSnapshot = await getDocs(userQuery);
+              
+              if (!userSnapshot.empty) {
+                const userData = userSnapshot.docs[0].data();
+                return {
+                  ...connection,
+                  name: userData.displayName || "User",
+                  title: userData.headline || "",
+                  photoURL: userData.photoURL
+                };
+              }
+              
+              return connection;
+            } catch (err) {
+              console.error("Error fetching connection details:", err);
+              return connection;
+            }
+          })
+        );
+        
+        // Fetch user details for pending connections
+        const pendingWithDetails = await Promise.all(
+          pendingConnections.map(async (connection) => {
+            try {
+              const userQuery = query(
+                collection(firestore, "users"),
+                where("userId", "==", connection.connectionId)
+              );
+              
+              const userSnapshot = await getDocs(userQuery);
+              
+              if (!userSnapshot.empty) {
+                const userData = userSnapshot.docs[0].data();
+                return {
+                  ...connection,
+                  name: userData.displayName || "User",
+                  title: userData.headline || "",
+                  photoURL: userData.photoURL
+                };
+              }
+              
+              return connection;
+            } catch (err) {
+              console.error("Error fetching pending connection details:", err);
+              return connection;
+            }
+          })
+        );
+
+        setConnections(connectionsWithDetails);
+        setPendingConnections(pendingWithDetails);
 
         // Fetch suggested connections (users who are not already connected)
         const usersQuery = query(
           collection(firestore, "users"),
+          where("userId", "!=", user.uid),
           limit(10)
         );
         
         const usersSnapshot = await getDocs(usersQuery);
+        const connectedIds = [...connectionsData.map(c => c.connectionId), ...pendingConnections.map(p => p.connectionId)];
+        
         const usersData = usersSnapshot.docs
-          .filter(doc => doc.id !== user.uid && 
-            !connectionsData.some(conn => conn.connectionId === doc.id))
+          .filter(doc => !connectedIds.includes(doc.data().userId))
           .map(doc => ({
             id: doc.id,
             ...doc.data(),
@@ -90,19 +161,11 @@ const NetworkPage = () => {
     if (!auth.currentUser) return;
     
     try {
-      // Create a new connection in Firestore
-      const connectionsRef = collection(firestore, "connections");
-      const newConnection = {
-        userId: auth.currentUser.uid,
-        connectionId: userId,
-        createdAt: new Date(),
-        status: "pending", // Could be "pending", "accepted", "rejected"
-      };
+      await sendConnectionRequest(auth.currentUser.uid, userId);
       
-      // Here we would add the new connection to Firestore
-      // For now, just update the local state to show immediate feedback
+      // Update UI by removing the user from suggested connections
       setSuggestedConnections(prev => 
-        prev.filter(user => user.id !== userId)
+        prev.filter(user => user.userId !== userId)
       );
       
       toast({
@@ -114,6 +177,74 @@ const NetworkPage = () => {
       toast({
         title: "Error",
         description: "Failed to send connection request",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handleAcceptConnection = async (connectionId: string) => {
+    try {
+      await acceptConnectionRequest(connectionId);
+      
+      // Move from pending to connections
+      const acceptedConnection = pendingConnections.find(conn => conn.id === connectionId);
+      if (acceptedConnection) {
+        setConnections(prev => [...prev, {...acceptedConnection, status: "accepted"}]);
+        setPendingConnections(prev => prev.filter(conn => conn.id !== connectionId));
+      }
+      
+      toast({
+        title: "Connection Accepted",
+        description: "You are now connected",
+      });
+    } catch (error) {
+      console.error("Error accepting connection:", error);
+      toast({
+        title: "Error",
+        description: "Failed to accept connection",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handleRejectConnection = async (connectionId: string) => {
+    try {
+      await rejectConnectionRequest(connectionId);
+      
+      // Remove from pending connections
+      setPendingConnections(prev => prev.filter(conn => conn.id !== connectionId));
+      
+      toast({
+        description: "Connection request declined",
+      });
+    } catch (error) {
+      console.error("Error rejecting connection:", error);
+      toast({
+        title: "Error",
+        description: "Failed to decline connection request",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handleRemoveConnection = async (connectionId: string) => {
+    if (!auth.currentUser) return;
+    
+    try {
+      await deleteDoc(doc(firestore, "connections", connectionId));
+      
+      // Remove from connections list
+      setConnections(prev => prev.filter(conn => conn.id !== connectionId));
+      
+      toast({
+        title: "Connection Removed",
+        description: "You are no longer connected with this user",
+      });
+    } catch (error) {
+      console.error("Error removing connection:", error);
+      toast({
+        title: "Error",
+        description: "Failed to remove connection",
         variant: "destructive",
       });
     }
@@ -154,23 +285,41 @@ const NetworkPage = () => {
           >
             <h2 className="text-xl font-bold mb-4">Pending Invitations</h2>
             <div className="space-y-4">
-              {connections.filter(conn => conn.status === "pending").length > 0 ? (
-                connections.filter(conn => conn.status === "pending").map((connection) => (
+              {pendingConnections.length > 0 ? (
+                pendingConnections.map((connection) => (
                   <div key={connection.id} className="flex items-center justify-between">
                     <div className="flex items-center space-x-3">
-                      <div className="w-10 h-10 rounded-full bg-sigma-purple/20 flex items-center justify-center text-sigma-purple font-bold">
-                        {connection.name?.charAt(0) || "U"}
+                      <div className="w-10 h-10 rounded-full bg-sigma-purple/20 flex items-center justify-center text-sigma-purple font-bold overflow-hidden">
+                        {connection.photoURL ? (
+                          <img src={connection.photoURL} alt={connection.name} className="w-full h-full object-cover" />
+                        ) : (
+                          connection.name?.charAt(0) || "U"
+                        )}
                       </div>
                       <div>
-                        <p className="font-medium">{connection.name || "User"}</p>
+                        <Link to={`/profile/${connection.connectionId}`} className="hover:underline">
+                          <p className="font-medium">{connection.name || "User"}</p>
+                        </Link>
                         <p className="text-sm text-muted-foreground">
                           {connection.title || "Professional"}
                         </p>
                       </div>
                     </div>
                     <div className="flex space-x-2">
-                      <Button size="sm" variant="outline">Accept</Button>
-                      <Button size="sm" variant="ghost">Decline</Button>
+                      <Button 
+                        size="sm" 
+                        className="bg-gradient-to-r from-sigma-blue to-sigma-purple text-white"
+                        onClick={() => handleAcceptConnection(connection.id)}
+                      >
+                        <Check className="w-4 h-4 mr-1" /> Accept
+                      </Button>
+                      <Button 
+                        size="sm" 
+                        variant="outline"
+                        onClick={() => handleRejectConnection(connection.id)}
+                      >
+                        <X className="w-4 h-4 mr-1" /> Decline
+                      </Button>
                     </div>
                   </div>
                 ))
@@ -189,16 +338,20 @@ const NetworkPage = () => {
           >
             <h2 className="text-xl font-bold mb-4">Your Connections</h2>
             <div className="space-y-4">
-              {connections.filter(conn => conn.status === "accepted").length > 0 ? (
-                connections.filter(conn => conn.status === "accepted").map((connection) => (
+              {connections.length > 0 ? (
+                connections.map((connection) => (
                   <div key={connection.id} className="flex items-center justify-between">
                     <div className="flex items-center space-x-3">
-                      <div className="w-10 h-10 rounded-full bg-sigma-blue/20 flex items-center justify-center text-sigma-blue font-bold">
-                        {connection.name?.charAt(0) || "U"}
+                      <div className="w-10 h-10 rounded-full bg-sigma-blue/20 flex items-center justify-center text-sigma-blue font-bold overflow-hidden">
+                        {connection.photoURL ? (
+                          <img src={connection.photoURL} alt={connection.name} className="w-full h-full object-cover" />
+                        ) : (
+                          connection.name?.charAt(0) || "U"
+                        )}
                       </div>
                       <div>
-                        <Link to={`/profile/${connection.connectionId}`}>
-                          <p className="font-medium hover:text-sigma-blue transition-colors">
+                        <Link to={`/profile/${connection.connectionId}`} className="hover:underline">
+                          <p className="font-medium">
                             {connection.name || "User"}
                           </p>
                         </Link>
@@ -207,7 +360,23 @@ const NetworkPage = () => {
                         </p>
                       </div>
                     </div>
-                    <Button size="sm" variant="outline">Message</Button>
+                    <div className="flex space-x-2">
+                      <Button 
+                        size="sm" 
+                        variant="outline"
+                        onClick={() => navigate(`/messages?userId=${connection.connectionId}`)}
+                      >
+                        Message
+                      </Button>
+                      <Button 
+                        size="sm" 
+                        variant="ghost"
+                        className="text-destructive hover:bg-destructive/10"
+                        onClick={() => handleRemoveConnection(connection.id)}
+                      >
+                        Remove
+                      </Button>
+                    </div>
                   </div>
                 ))
               ) : (
@@ -229,12 +398,16 @@ const NetworkPage = () => {
                 suggestedConnections.map((user) => (
                   <div key={user.id} className="flex items-center justify-between">
                     <div className="flex items-center space-x-3">
-                      <div className="w-10 h-10 rounded-full bg-sigma-blue/20 flex items-center justify-center text-sigma-blue font-bold">
-                        {user.displayName?.charAt(0) || "U"}
+                      <div className="w-10 h-10 rounded-full bg-sigma-blue/20 flex items-center justify-center text-sigma-blue font-bold overflow-hidden">
+                        {user.photoURL ? (
+                          <img src={user.photoURL} alt={user.displayName} className="w-full h-full object-cover" />
+                        ) : (
+                          user.displayName?.charAt(0) || "U"
+                        )}
                       </div>
                       <div>
-                        <Link to={`/profile/${user.id}`}>
-                          <p className="font-medium hover:text-sigma-blue transition-colors">
+                        <Link to={`/profile/${user.userId}`} className="hover:underline">
+                          <p className="font-medium">
                             {user.displayName || "User"}
                           </p>
                         </Link>
@@ -246,9 +419,10 @@ const NetworkPage = () => {
                     <Button 
                       size="sm" 
                       variant="outline"
-                      onClick={() => handleConnect(user.id)}
+                      onClick={() => handleConnect(user.userId)}
+                      className="flex items-center"
                     >
-                      Connect
+                      <UserPlus className="w-4 h-4 mr-1" /> Connect
                     </Button>
                   </div>
                 ))

@@ -5,13 +5,15 @@ import { motion } from "framer-motion";
 import { doc, getDoc, collection, getDocs, query, where } from "firebase/firestore";
 import { auth, firestore } from "@/lib/firebase";
 import { Button } from "@/components/ui/button";
-import ProfileForm from "@/components/profile/ProfileForm";
+import { useToast } from "@/hooks/use-toast";
+import ProfileEditForm from "@/components/profile/ProfileEditForm";
 
 const ProfilePage = () => {
   const [user, setUser] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [isEditing, setIsEditing] = useState(false);
   const navigate = useNavigate();
+  const { toast } = useToast();
 
   useEffect(() => {
     // Check if user is authenticated
@@ -31,7 +33,7 @@ const ProfilePage = () => {
             id: authUser.uid,
             displayName: userDoc.data().displayName || authUser.displayName,
             email: authUser.email,
-            photoURL: authUser.photoURL,
+            photoURL: userDoc.data().photoURL || authUser.photoURL,
           });
         } else {
           // Create a minimal user object if no profile found
@@ -48,13 +50,44 @@ const ProfilePage = () => {
         }
       } catch (error) {
         console.error("Error fetching user data:", error);
+        toast({
+          title: "Error",
+          description: "Failed to load user profile",
+          variant: "destructive",
+        });
       } finally {
         setLoading(false);
       }
     });
 
     return () => unsubscribe();
-  }, [navigate, isEditing]);
+  }, [navigate, toast]);
+
+  // Fetch connection count
+  useEffect(() => {
+    const fetchConnectionCount = async () => {
+      if (!user?.id) return;
+
+      try {
+        const connectionsQuery = query(
+          collection(firestore, "connections"),
+          where("userId", "==", user.id),
+          where("status", "==", "accepted")
+        );
+        
+        const connectionsSnapshot = await getDocs(connectionsQuery);
+        
+        setUser(prevUser => ({
+          ...prevUser,
+          connectionCount: connectionsSnapshot.size
+        }));
+      } catch (error) {
+        console.error("Error fetching connection count:", error);
+      }
+    };
+
+    fetchConnectionCount();
+  }, [user?.id]);
 
   if (loading) {
     return (
@@ -70,19 +103,17 @@ const ProfilePage = () => {
 
   if (isEditing) {
     return (
-      <div className="min-h-screen pt-20 px-4 bg-background">
+      <div className="min-h-screen pt-20 px-4 bg-background pb-12">
         <div className="container mx-auto">
           <div className="max-w-4xl mx-auto">
-            <div className="flex items-center justify-between mb-6">
-              <h1 className="text-2xl font-bold">Edit Your Profile</h1>
-              <Button 
-                variant="outline" 
-                onClick={() => setIsEditing(false)}
-              >
-                Cancel
-              </Button>
+            <div className="glass-card p-8">
+              <h1 className="text-2xl font-bold mb-6">Edit Your Profile</h1>
+              <ProfileEditForm 
+                user={user}
+                onCancel={() => setIsEditing(false)}
+                onSave={() => setIsEditing(false)}
+              />
             </div>
-            <ProfileForm />
           </div>
         </div>
       </div>
@@ -105,8 +136,12 @@ const ProfilePage = () => {
 
             {/* Profile Picture */}
             <div className="absolute top-20 md:top-24 left-8">
-              <div className="w-24 h-24 rounded-full bg-sigma-blue/20 flex items-center justify-center text-sigma-blue text-4xl font-bold border-4 border-background">
-                {user.displayName?.charAt(0)}
+              <div className="w-24 h-24 rounded-full bg-sigma-blue/20 flex items-center justify-center text-sigma-blue text-4xl font-bold border-4 border-background overflow-hidden">
+                {user.photoURL ? (
+                  <img src={user.photoURL} alt={user.displayName} className="w-full h-full object-cover" />
+                ) : (
+                  user.displayName?.charAt(0) || "U"
+                )}
               </div>
             </div>
 
@@ -131,7 +166,7 @@ const ProfilePage = () => {
                 >
                   Edit Profile
                 </Button>
-                <Button variant="outline" onClick={() => navigate("/profile/share")}>Share Profile</Button>
+                <Button variant="outline" onClick={() => navigate("/network")}>View Network</Button>
               </div>
             </div>
           </motion.div>
@@ -181,11 +216,11 @@ const ProfilePage = () => {
               {user.experience && user.experience.length > 0 ? (
                 user.experience.map((exp: any, index: number) => (
                   <div key={index} className="border-l-2 border-sigma-blue/50 dark:border-sigma-purple/50 pl-4">
-                    <h3 className="font-bold">{exp.title}</h3>
+                    <h3 className="font-bold">{exp.title || "Position"}</h3>
                     <p className="text-muted-foreground">
-                      {exp.company} • {exp.duration}
+                      {exp.company || "Company"} • {exp.duration || "Duration"}
                     </p>
-                    <p className="mt-2">{exp.description}</p>
+                    <p className="mt-2">{exp.description || ""}</p>
                   </div>
                 ))
               ) : (
@@ -216,9 +251,9 @@ const ProfilePage = () => {
               {user.education && user.education.length > 0 ? (
                 user.education.map((edu: any, index: number) => (
                   <div key={index} className="border-l-2 border-sigma-blue/50 dark:border-sigma-purple/50 pl-4">
-                    <h3 className="font-bold">{edu.school}</h3>
+                    <h3 className="font-bold">{edu.school || "Institution"}</h3>
                     <p className="text-muted-foreground">
-                      {edu.degree} • {edu.duration}
+                      {edu.degree || "Degree"} • {edu.duration || "Duration"}
                     </p>
                   </div>
                 ))

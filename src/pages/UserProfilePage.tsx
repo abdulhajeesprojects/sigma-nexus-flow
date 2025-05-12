@@ -6,6 +6,9 @@ import { doc, getDoc, collection, query, where, getDocs, addDoc, deleteDoc } fro
 import { auth, firestore } from "@/lib/firebase";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
+import { MessageSquare, UserPlus, X, CheckCheck } from "lucide-react";
+import { sendConnectionRequest } from "@/services/firestore";
+import { checkUserOnlineStatus } from "@/services/presence";
 
 const UserProfilePage = () => {
   const [profile, setProfile] = useState<any>(null);
@@ -13,6 +16,7 @@ const UserProfilePage = () => {
   const [isConnected, setIsConnected] = useState(false);
   const [isPending, setIsPending] = useState(false);
   const [connectionId, setConnectionId] = useState<string | null>(null);
+  const [isOnline, setIsOnline] = useState(false);
   const { userId } = useParams();
   const navigate = useNavigate();
   const { toast } = useToast();
@@ -20,6 +24,8 @@ const UserProfilePage = () => {
   useEffect(() => {
     // Check if user is authenticated
     const unsubscribe = auth.onAuthStateChanged(async (authUser) => {
+      if (!userId) return;
+      
       if (!authUser) {
         navigate("/auth");
         return;
@@ -33,13 +39,15 @@ const UserProfilePage = () => {
 
       try {
         // Fetch user profile
-        const userDoc = await getDoc(doc(firestore, "users", userId!));
+        const userDoc = await getDoc(doc(firestore, "users", userId));
         
         if (userDoc.exists()) {
-          setProfile({
+          const profileData = {
             id: userDoc.id,
             ...userDoc.data(),
-          });
+          };
+          
+          setProfile(profileData);
           
           // Check connection status
           const connectionsQuery = query(
@@ -56,6 +64,13 @@ const UserProfilePage = () => {
             setIsConnected(connectionData.status === "accepted");
             setIsPending(connectionData.status === "pending");
           }
+
+          // Set up online status listener
+          const cleanup = checkUserOnlineStatus(userId, (online) => {
+            setIsOnline(online);
+          });
+
+          return cleanup;
         } else {
           toast({
             title: "User Not Found",
@@ -80,18 +95,10 @@ const UserProfilePage = () => {
   }, [userId, navigate, toast]);
 
   const handleConnect = async () => {
-    if (!auth.currentUser) return;
+    if (!auth.currentUser || !userId) return;
     
     try {
-      // Create a new connection in Firestore
-      const newConnection = {
-        userId: auth.currentUser.uid,
-        connectionId: userId,
-        createdAt: new Date(),
-        status: "pending", // Could be "pending", "accepted", "rejected"
-      };
-      
-      await addDoc(collection(firestore, "connections"), newConnection);
+      await sendConnectionRequest(auth.currentUser.uid, userId);
       
       setIsPending(true);
       
@@ -134,9 +141,8 @@ const UserProfilePage = () => {
   };
 
   const handleMessage = () => {
-    // In a real app, this would create a conversation if it doesn't exist
-    // and redirect to the messages page with this conversation open
-    navigate("/messages");
+    if (!userId) return;
+    navigate(`/messages?userId=${userId}`);
   };
 
   if (loading) {
@@ -167,15 +173,27 @@ const UserProfilePage = () => {
 
             {/* Profile Picture */}
             <div className="absolute top-20 md:top-24 left-8">
-              <div className="w-24 h-24 rounded-full bg-sigma-blue/20 flex items-center justify-center text-sigma-blue text-4xl font-bold border-4 border-background">
-                {profile?.displayName?.charAt(0) || "U"}
+              <div className="w-24 h-24 rounded-full bg-sigma-blue/20 flex items-center justify-center text-sigma-blue text-4xl font-bold border-4 border-background overflow-hidden relative">
+                {profile?.photoURL ? (
+                  <img src={profile.photoURL} alt={profile.displayName} className="w-full h-full object-cover" />
+                ) : (
+                  profile?.displayName?.charAt(0) || "U"
+                )}
+                
+                {/* Online status indicator */}
+                <div className={`absolute bottom-0 right-0 w-4 h-4 rounded-full border-2 border-background ${isOnline ? 'bg-green-500' : 'bg-gray-400'}`}></div>
               </div>
             </div>
 
             {/* Profile Info */}
             <div className="flex flex-col md:flex-row md:justify-between md:items-end">
               <div>
-                <h1 className="text-2xl font-bold mb-2">{profile?.displayName || "User"}</h1>
+                <div className="flex items-center">
+                  <h1 className="text-2xl font-bold mb-2">{profile?.displayName || "User"}</h1>
+                  {isOnline && (
+                    <span className="ml-2 text-xs bg-green-500 text-white px-2 py-0.5 rounded-full">Online</span>
+                  )}
+                </div>
                 <p className="text-muted-foreground mb-2">{profile?.headline || "SiGMA Hub Member"}</p>
                 <div className="flex items-center text-sm text-muted-foreground mb-4">
                   <span>{profile?.location || "Location not specified"}</span>
@@ -193,25 +211,25 @@ const UserProfilePage = () => {
                       className="bg-gradient-to-r from-sigma-blue to-sigma-purple hover:from-sigma-purple hover:to-sigma-blue text-white"
                       onClick={handleMessage}
                     >
-                      Message
+                      <MessageSquare className="w-4 h-4 mr-1" /> Message
                     </Button>
                     <Button 
                       variant="outline"
                       onClick={handleRemoveConnection}
                     >
-                      Remove Connection
+                      <X className="w-4 h-4 mr-1" /> Remove Connection
                     </Button>
                   </>
                 ) : isPending ? (
                   <Button variant="outline" disabled>
-                    Pending Connection
+                    <CheckCheck className="w-4 h-4 mr-1" /> Pending
                   </Button>
                 ) : (
                   <Button
                     className="bg-gradient-to-r from-sigma-blue to-sigma-purple hover:from-sigma-purple hover:to-sigma-blue text-white"
                     onClick={handleConnect}
                   >
-                    Connect
+                    <UserPlus className="w-4 h-4 mr-1" /> Connect
                   </Button>
                 )}
               </div>
@@ -241,11 +259,11 @@ const UserProfilePage = () => {
               {profile?.experience && profile.experience.length > 0 ? (
                 profile.experience.map((exp: any, index: number) => (
                   <div key={index} className="border-l-2 border-sigma-blue/50 dark:border-sigma-purple/50 pl-4">
-                    <h3 className="font-bold">{exp.title}</h3>
+                    <h3 className="font-bold">{exp.title || "Position"}</h3>
                     <p className="text-muted-foreground">
-                      {exp.company} • {exp.duration}
+                      {exp.company || "Company"} • {exp.duration || "Duration"}
                     </p>
-                    <p className="mt-2">{exp.description}</p>
+                    <p className="mt-2">{exp.description || ""}</p>
                   </div>
                 ))
               ) : (
@@ -266,9 +284,9 @@ const UserProfilePage = () => {
               {profile?.education && profile.education.length > 0 ? (
                 profile.education.map((edu: any, index: number) => (
                   <div key={index} className="border-l-2 border-sigma-blue/50 dark:border-sigma-purple/50 pl-4">
-                    <h3 className="font-bold">{edu.school}</h3>
+                    <h3 className="font-bold">{edu.school || "Institution"}</h3>
                     <p className="text-muted-foreground">
-                      {edu.degree} • {edu.duration}
+                      {edu.degree || "Degree"} • {edu.duration || "Duration"}
                     </p>
                   </div>
                 ))

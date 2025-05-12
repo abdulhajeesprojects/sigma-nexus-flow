@@ -1,4 +1,3 @@
-
 import { 
   collection, 
   doc, 
@@ -10,14 +9,17 @@ import {
   getDocs, 
   addDoc, 
   serverTimestamp,
-  runTransaction
+  runTransaction,
+  deleteDoc
 } from "firebase/firestore";
-import { firestore } from "@/lib/firebase";
+import { ref, uploadBytes, getDownloadURL, deleteObject } from "firebase/storage";
+import { firestore, storage } from "@/lib/firebase";
 
 // User related operations
 export const createUserProfile = async (userId: string, userData: any) => {
   try {
     await setDoc(doc(firestore, "users", userId), {
+      userId,
       ...userData,
       createdAt: serverTimestamp(),
       updatedAt: serverTimestamp()
@@ -58,6 +60,25 @@ export const getUserProfile = async (userId: string) => {
   }
 };
 
+export const uploadProfileImage = async (userId: string, file: File): Promise<string> => {
+  try {
+    const storageRef = ref(storage, `profile/${userId}/${file.name}`);
+    const uploadResult = await uploadBytes(storageRef, file);
+    const downloadURL = await getDownloadURL(uploadResult.ref);
+    
+    // Update user profile with image URL
+    await updateDoc(doc(firestore, "users", userId), {
+      photoURL: downloadURL,
+      updatedAt: serverTimestamp()
+    });
+    
+    return downloadURL;
+  } catch (error) {
+    console.error("Error uploading profile image:", error);
+    throw error;
+  }
+};
+
 // Connection related operations
 export const sendConnectionRequest = async (userId: string, connectionId: string) => {
   try {
@@ -75,12 +96,23 @@ export const sendConnectionRequest = async (userId: string, connectionId: string
     }
     
     // Create a new connection
-    await addDoc(collection(firestore, "connections"), {
+    const connectionDoc = await addDoc(collection(firestore, "connections"), {
       userId,
       connectionId,
       status: "pending",
       createdAt: serverTimestamp(),
       updatedAt: serverTimestamp()
+    });
+    
+    // Create notification for connection request
+    await addDoc(collection(firestore, "notifications"), {
+      userId: connectionId,
+      senderId: userId,
+      type: "connectionRequest",
+      message: "sent you a connection request",
+      isRead: false,
+      connectionId: connectionDoc.id,
+      timestamp: serverTimestamp()
     });
     
     return true;
@@ -116,9 +148,30 @@ export const acceptConnectionRequest = async (connectionId: string) => {
       updatedAt: serverTimestamp()
     });
     
+    // Create notification for accepted connection
+    await addDoc(collection(firestore, "notifications"), {
+      userId: connectionData.userId,
+      senderId: connectionData.connectionId,
+      type: "connectionAccepted",
+      message: "accepted your connection request",
+      isRead: false,
+      timestamp: serverTimestamp()
+    });
+    
     return true;
   } catch (error) {
     console.error("Error accepting connection request:", error);
+    throw error;
+  }
+};
+
+export const rejectConnectionRequest = async (connectionId: string) => {
+  try {
+    const connectionRef = doc(firestore, "connections", connectionId);
+    await deleteDoc(connectionRef);
+    return true;
+  } catch (error) {
+    console.error("Error rejecting connection request:", error);
     throw error;
   }
 };
@@ -132,6 +185,7 @@ export const createPost = async (userId: string, postData: any) => {
       likes: 0,
       comments: 0,
       shares: 0,
+      likedBy: [],
       createdAt: serverTimestamp(),
       updatedAt: serverTimestamp()
     });
@@ -155,6 +209,53 @@ export const getUserPosts = async (userId: string) => {
     return postsSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
   } catch (error) {
     console.error("Error getting user posts:", error);
+    throw error;
+  }
+};
+
+export const likePost = async (postId: string, userId: string, isLiked: boolean) => {
+  try {
+    const postRef = doc(firestore, "posts", postId);
+    const postSnap = await getDoc(postRef);
+    
+    if (!postSnap.exists()) {
+      throw new Error("Post does not exist");
+    }
+    
+    const postData = postSnap.data();
+    
+    if (isLiked) {
+      // Remove like
+      await updateDoc(postRef, {
+        likes: postData.likes - 1,
+        likedBy: postData.likedBy.filter((id: string) => id !== userId),
+        updatedAt: serverTimestamp()
+      });
+    } else {
+      // Add like
+      await updateDoc(postRef, {
+        likes: postData.likes + 1,
+        likedBy: [...(postData.likedBy || []), userId],
+        updatedAt: serverTimestamp()
+      });
+      
+      // Create notification for post like (if not your own post)
+      if (postData.userId !== userId) {
+        await addDoc(collection(firestore, "notifications"), {
+          userId: postData.userId,
+          senderId: userId,
+          type: "postLike",
+          postId,
+          message: "liked your post",
+          isRead: false,
+          timestamp: serverTimestamp()
+        });
+      }
+    }
+    
+    return true;
+  } catch (error) {
+    console.error("Error liking post:", error);
     throw error;
   }
 };
@@ -284,6 +385,39 @@ export const sendMessage = async (conversationId: string, senderId: string, rece
     return result;
   } catch (error) {
     console.error("Error sending message:", error);
+    throw error;
+  }
+};
+
+// Notification related operations
+export const getNotifications = async (userId: string) => {
+  try {
+    const notificationsQuery = query(
+      collection(firestore, "notifications"),
+      where("userId", "==", userId),
+      where("isRead", "==", false)
+    );
+    
+    const notificationsSnapshot = await getDocs(notificationsQuery);
+    
+    return notificationsSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+  } catch (error) {
+    console.error("Error getting notifications:", error);
+    throw error;
+  }
+};
+
+export const markNotificationAsRead = async (notificationId: string) => {
+  try {
+    const notificationRef = doc(firestore, "notifications", notificationId);
+    await updateDoc(notificationRef, {
+      isRead: true,
+      updatedAt: serverTimestamp()
+    });
+    
+    return true;
+  } catch (error) {
+    console.error("Error marking notification as read:", error);
     throw error;
   }
 };

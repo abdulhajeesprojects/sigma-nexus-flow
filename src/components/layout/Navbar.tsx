@@ -7,6 +7,8 @@ import { auth } from "@/lib/firebase";
 import { Button } from "@/components/ui/button";
 import ThemeToggle from "@/components/theme/ThemeToggle";
 import { useToast } from "@/hooks/use-toast";
+import NotificationBell from "@/components/notifications/NotificationBell";
+import { Home, Users, Briefcase, MessageSquare, User, Info, Star, CreditCard } from "lucide-react";
 
 interface NavbarProps {
   isAuthenticated: boolean;
@@ -81,12 +83,13 @@ const Navbar = ({ isAuthenticated }: NavbarProps) => {
         <nav className="hidden md:flex items-center space-x-8">
           {isAuthenticated ? (
             <>
-              <NavLink to="/feed">Feed</NavLink>
-              <NavLink to="/network">Network</NavLink>
-              <NavLink to="/jobs">Jobs</NavLink>
-              <NavLink to="/messages">Messages</NavLink>
-              <NavLink to="/profile">Profile</NavLink>
+              <NavLink to="/feed" icon={<Home className="w-4 h-4 mr-1" />}>Feed</NavLink>
+              <NavLink to="/network" icon={<Users className="w-4 h-4 mr-1" />}>Network</NavLink>
+              <NavLink to="/jobs" icon={<Briefcase className="w-4 h-4 mr-1" />}>Jobs</NavLink>
+              <NavLink to="/messages" icon={<MessageSquare className="w-4 h-4 mr-1" />}>Messages</NavLink>
+              <NavLink to="/profile" icon={<User className="w-4 h-4 mr-1" />}>Profile</NavLink>
               <div className="flex items-center space-x-4">
+                <NotificationBell />
                 <ThemeToggle />
                 <Button
                   variant="outline"
@@ -99,9 +102,9 @@ const Navbar = ({ isAuthenticated }: NavbarProps) => {
             </>
           ) : (
             <>
-              <NavLink to="/about">About</NavLink>
-              <NavLink to="/features">Features</NavLink>
-              <NavLink to="/pricing">Pricing</NavLink>
+              <NavLink to="/about" icon={<Info className="w-4 h-4 mr-1" />}>About</NavLink>
+              <NavLink to="/features" icon={<Star className="w-4 h-4 mr-1" />}>Features</NavLink>
+              <NavLink to="/pricing" icon={<CreditCard className="w-4 h-4 mr-1" />}>Pricing</NavLink>
               <div className="flex items-center space-x-4">
                 <ThemeToggle />
                 <Link to="/auth">
@@ -126,6 +129,7 @@ const Navbar = ({ isAuthenticated }: NavbarProps) => {
 
         {/* Mobile Menu Button */}
         <div className="md:hidden flex items-center space-x-4">
+          {isAuthenticated && <NotificationBell />}
           <ThemeToggle />
           <motion.button
             whileTap={{ scale: 0.9 }}
@@ -174,30 +178,35 @@ const Navbar = ({ isAuthenticated }: NavbarProps) => {
                   <MobileNavLink
                     to="/feed"
                     onClick={() => setMobileMenuOpen(false)}
+                    icon={<Home className="w-4 h-4 mr-2" />}
                   >
                     Feed
                   </MobileNavLink>
                   <MobileNavLink
                     to="/network"
                     onClick={() => setMobileMenuOpen(false)}
+                    icon={<Users className="w-4 h-4 mr-2" />}
                   >
                     Network
                   </MobileNavLink>
                   <MobileNavLink
                     to="/jobs"
                     onClick={() => setMobileMenuOpen(false)}
+                    icon={<Briefcase className="w-4 h-4 mr-2" />}
                   >
                     Jobs
                   </MobileNavLink>
                   <MobileNavLink
                     to="/messages"
                     onClick={() => setMobileMenuOpen(false)}
+                    icon={<MessageSquare className="w-4 h-4 mr-2" />}
                   >
                     Messages
                   </MobileNavLink>
                   <MobileNavLink
                     to="/profile"
                     onClick={() => setMobileMenuOpen(false)}
+                    icon={<User className="w-4 h-4 mr-2" />}
                   >
                     Profile
                   </MobileNavLink>
@@ -219,18 +228,21 @@ const Navbar = ({ isAuthenticated }: NavbarProps) => {
                   <MobileNavLink
                     to="/about"
                     onClick={() => setMobileMenuOpen(false)}
+                    icon={<Info className="w-4 h-4 mr-2" />}
                   >
                     About
                   </MobileNavLink>
                   <MobileNavLink
                     to="/features"
                     onClick={() => setMobileMenuOpen(false)}
+                    icon={<Star className="w-4 h-4 mr-2" />}
                   >
                     Features
                   </MobileNavLink>
                   <MobileNavLink
                     to="/pricing"
                     onClick={() => setMobileMenuOpen(false)}
+                    icon={<CreditCard className="w-4 h-4 mr-2" />}
                   >
                     Pricing
                   </MobileNavLink>
@@ -262,13 +274,14 @@ const Navbar = ({ isAuthenticated }: NavbarProps) => {
 };
 
 // Desktop NavLink component
-const NavLink = ({ to, children }: { to: string; children: React.ReactNode }) => (
+const NavLink = ({ to, icon, children }: { to: string; icon: React.ReactNode; children: React.ReactNode }) => (
   <Link to={to}>
     <motion.span
-      className="relative text-sm font-medium cursor-pointer transition-colors hover:text-sigma-blue dark:hover:text-sigma-purple"
+      className="relative text-sm font-medium cursor-pointer transition-colors hover:text-sigma-blue dark:hover:text-sigma-purple flex items-center"
       whileHover={{ scale: 1.05 }}
       whileTap={{ scale: 0.95 }}
     >
+      {icon}
       {children}
     </motion.span>
   </Link>
@@ -278,17 +291,20 @@ const NavLink = ({ to, children }: { to: string; children: React.ReactNode }) =>
 const MobileNavLink = ({
   to,
   onClick,
+  icon,
   children,
 }: {
   to: string;
   onClick: () => void;
+  icon: React.ReactNode;
   children: React.ReactNode;
 }) => (
   <Link to={to} onClick={onClick} className="block py-2">
     <motion.span
-      className="text-base font-medium"
+      className="text-base font-medium flex items-center"
       whileTap={{ scale: 0.95 }}
     >
+      {icon}
       {children}
     </motion.span>
   </Link>

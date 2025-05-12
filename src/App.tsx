@@ -1,9 +1,10 @@
 
+import { useEffect } from "react";
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Routes, Route } from "react-router-dom";
+import { BrowserRouter, Routes, Route, useNavigate } from "react-router-dom";
 import { ThemeProvider } from "@/providers/ThemeProvider";
 import Layout from "@/components/layout/Layout";
 import HomePage from "@/pages/HomePage";
@@ -18,8 +19,35 @@ import FeaturesPage from "@/pages/FeaturesPage";
 import PricingPage from "@/pages/PricingPage";
 import UserProfilePage from "@/pages/UserProfilePage";
 import NotFound from "./pages/NotFound";
+import { auth } from "./lib/firebase";
+import { setupPresence, cleanupPresence } from "./services/presence";
 
 const queryClient = new QueryClient();
+
+// Auth listener to handle presence setup/cleanup
+const AuthListener = () => {
+  const navigate = useNavigate();
+
+  useEffect(() => {
+    const unsubscribe = auth.onAuthStateChanged((user) => {
+      if (user) {
+        // User is signed in
+        setupPresence();
+      } else {
+        // User is signed out
+        cleanupPresence();
+        navigate('/');
+      }
+    });
+
+    return () => {
+      unsubscribe();
+      cleanupPresence();
+    };
+  }, [navigate]);
+
+  return null;
+};
 
 const App = () => (
   <QueryClientProvider client={queryClient}>
@@ -28,6 +56,7 @@ const App = () => (
         <Toaster />
         <Sonner />
         <BrowserRouter>
+          <AuthListener />
           <Routes>
             <Route element={<Layout />}>
               <Route path="/" element={<HomePage />} />
