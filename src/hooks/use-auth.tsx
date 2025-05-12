@@ -17,7 +17,7 @@ const defaultContextValue: AuthContextType = {
   loading: true
 };
 
-const AuthContext = createContext<AuthContextType>(defaultContextValue);
+export const AuthContext = createContext<AuthContextType>(defaultContextValue);
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [currentUser, setCurrentUser] = useState<User | null>(null);
@@ -25,6 +25,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     try {
+      // Make sure we only subscribe once
       const unsubscribe = onAuthStateChanged(auth, (user) => {
         setCurrentUser(user);
         setLoading(false);
@@ -33,7 +34,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         setLoading(false);
       });
       
-      return unsubscribe;
+      return () => unsubscribe();
     } catch (error) {
       console.error("Auth provider setup error:", error);
       setLoading(false);

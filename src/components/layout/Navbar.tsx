@@ -136,7 +136,7 @@ const Navbar = () => {
               <DropdownMenuTrigger asChild>
                 <Button variant="ghost" className="h-8 w-8 p-0 rounded-full">
                   <Avatar className="h-8 w-8">
-                    <AvatarImage src={currentUser?.photoURL} alt={currentUser?.displayName || "Avatar"} />
+                    <AvatarImage src={currentUser?.photoURL || undefined} alt={currentUser?.displayName || "Avatar"} />
                     <AvatarFallback>{currentUser?.displayName?.charAt(0) || "U"}</AvatarFallback>
                   </Avatar>
                 </Button>
@@ -164,7 +164,7 @@ const Navbar = () => {
           <Button
             variant="ghost"
             className="lg:hidden"
-            onClick={toggleMobileMenu}
+            onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
           >
             <AlignJustify className="h-5 w-5" />
           </Button>
