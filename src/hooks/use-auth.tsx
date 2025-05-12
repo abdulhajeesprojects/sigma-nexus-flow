@@ -11,31 +11,53 @@ type AuthContextType = {
   loading: boolean;
 };
 
-const AuthContext = createContext<AuthContextType>({
+// Create a default context value
+const defaultContextValue: AuthContextType = {
   currentUser: null,
   loading: true
-});
+};
+
+const AuthContext = createContext<AuthContextType>(defaultContextValue);
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, (user) => {
-      setCurrentUser(user);
+    try {
+      const unsubscribe = onAuthStateChanged(auth, (user) => {
+        setCurrentUser(user);
+        setLoading(false);
+      }, (error) => {
+        console.error("Auth state change error:", error);
+        setLoading(false);
+      });
+      
+      return unsubscribe;
+    } catch (error) {
+      console.error("Auth provider setup error:", error);
       setLoading(false);
-    });
-    
-    return unsubscribe;
+      return () => {};
+    }
   }, []);
 
+  // Provide a stable object reference
+  const value = {
+    currentUser,
+    loading
+  };
+
   return (
-    <AuthContext.Provider value={{ currentUser, loading }}>
+    <AuthContext.Provider value={value}>
       {children}
     </AuthContext.Provider>
   );
 }
 
 export function useAuth() {
-  return useContext(AuthContext);
+  const context = useContext(AuthContext);
+  if (context === undefined) {
+    throw new Error("useAuth must be used within an AuthProvider");
+  }
+  return context;
 }
