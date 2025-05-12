@@ -61,7 +61,6 @@ const Layout = () => {
     );
   }
 
-  // Wrap the rendering in try/catch to catch any errors
   try {
     return (
       <div className="flex flex-col min-h-screen">
