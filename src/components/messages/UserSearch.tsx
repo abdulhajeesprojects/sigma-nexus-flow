@@ -1,3 +1,4 @@
+
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Input } from '@/components/ui/input';
@@ -7,7 +8,7 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { Search, MessageCircle } from 'lucide-react';
 import { searchUsersByUsername } from '@/services/firestore';
 import { getAvatarForUser } from '@/services/avatars';
-import { useToast } from '@/hooks/use-toast';
+import { toast } from '@/hooks/use-toast';
 import { useAuth } from '@/contexts/AuthContext';
 
 interface UserSearchProps {
@@ -19,7 +20,6 @@ export function UserSearch({ onUserSelect }: UserSearchProps) {
   const [searchResults, setSearchResults] = useState<any[]>([]);
   const [isSearching, setIsSearching] = useState(false);
   const navigate = useNavigate();
-  const { toast } = useToast();
   const { currentUser } = useAuth();
 
   useEffect(() => {
@@ -36,9 +36,9 @@ export function UserSearch({ onUserSelect }: UserSearchProps) {
       } catch (error) {
         console.error('Error searching users:', error);
         toast({
-          title: 'Error',
-          description: 'Failed to search users',
-          variant: 'destructive',
+          title: "Error",
+          description: "Failed to search users",
+          variant: "destructive",
         });
       } finally {
         setIsSearching(false);
@@ -47,7 +47,7 @@ export function UserSearch({ onUserSelect }: UserSearchProps) {
 
     const debounceTimer = setTimeout(searchUsers, 300);
     return () => clearTimeout(debounceTimer);
-  }, [searchTerm, toast]);
+  }, [searchTerm]);
 
   const handleUserSelect = (userId: string) => {
     if (onUserSelect) {
@@ -121,4 +121,4 @@ export function UserSearch({ onUserSelect }: UserSearchProps) {
       )}
     </div>
   );
-} 
+}

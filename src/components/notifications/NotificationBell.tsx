@@ -18,7 +18,7 @@ import { firestore, auth } from "@/lib/firebase";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { formatDistanceToNow } from "date-fns";
-import { useToast } from "@/hooks/use-toast";
+import { toast } from "@/hooks/use-toast";
 import { useNavigate } from "react-router-dom";
 
 interface Notification {
@@ -43,7 +43,6 @@ const NotificationBell = () => {
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [unreadCount, setUnreadCount] = useState(0);
   const [isOpen, setIsOpen] = useState(false);
-  const { toast } = useToast();
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -107,34 +106,26 @@ const NotificationBell = () => {
         // Navigate to post
         if (notification.postId) {
           navigate(`/feed?post=${notification.postId}`);
-          toast({
-            description: `Viewing post`,
-          });
+          toast("Viewing post");
         }
         break;
       case "connectionRequest":
         // Navigate to connection requests
         navigate("/requests");
-        toast({
-          description: `Viewing connection requests`,
-        });
+        toast("Viewing connection requests");
         break;
       case "connectionAccepted":
         // Navigate to user profile
         if (notification.senderId) {
           navigate(`/profile/${notification.senderId}`);
-          toast({
-            description: `Viewing ${notification.senderName}'s profile`,
-          });
+          toast(`Viewing ${notification.senderName}'s profile`);
         }
         break;
       case "message":
         // Navigate to messages
         if (notification.senderId) {
           navigate(`/messages?userId=${notification.senderId}`);
-          toast({
-            description: `Viewing message conversation`,
-          });
+          toast("Viewing message conversation");
         }
         break;
       default:

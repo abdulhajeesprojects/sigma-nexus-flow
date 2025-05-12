@@ -1,6 +1,7 @@
+
 import { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
-import { useToast } from '@/hooks/use-toast';
+import { toast } from '@/hooks/use-toast';
 import Pusher from 'pusher-js';
 
 const CHANNEL_NAME = 'conversation-123';
@@ -8,7 +9,6 @@ const SUBSCRIPTION_KEY = 'sigma_subscribed_channels';
 
 const ChannelSubscription = () => {
   const [isSubscribed, setIsSubscribed] = useState(false);
-  const { toast } = useToast();
 
   // Initialize Pusher and load subscription state
   useEffect(() => {
@@ -139,4 +139,4 @@ const ChannelSubscription = () => {
   );
 };
 
-export default ChannelSubscription; 
+export default ChannelSubscription;

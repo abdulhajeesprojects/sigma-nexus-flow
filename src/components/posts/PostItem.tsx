@@ -7,7 +7,7 @@ import { auth, firestore, database } from "@/lib/firebase";
 import { doc, updateDoc, increment, arrayUnion, arrayRemove, deleteDoc, getDoc, collection, addDoc, serverTimestamp, query, where, orderBy, getDocs, writeBatch } from "firebase/firestore";
 import { ref as dbRef, push } from "firebase/database";
 import { Link } from "react-router-dom";
-import { useToast } from "@/hooks/use-toast";
+import { toast } from "@/hooks/use-toast";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -69,11 +69,10 @@ const PostItem = ({ post, refreshPosts }: PostItemProps) => {
   const [commentText, setCommentText] = useState("");
   const [comments, setComments] = useState<Comment[]>([]);
   const [loadingComments, setLoadingComments] = useState(false);
-  const { toast } = useToast();
 
   const isAuthor = auth.currentUser?.uid === post.userId;
 
-  // Debounced handlers
+  // Toast notifications in handleLike
   const debouncedLike = useCallback(
     debounce(async (userId: string) => {
       try {
@@ -130,6 +129,7 @@ const PostItem = ({ post, refreshPosts }: PostItemProps) => {
     [post.id, isLiked]
   );
 
+  // Toast notifications in debouncedComment
   const debouncedComment = useCallback(
     debounce(async (content: string) => {
       if (!auth.currentUser || !content.trim()) return;
@@ -204,7 +204,7 @@ const PostItem = ({ post, refreshPosts }: PostItemProps) => {
     [post.id]
   );
 
-  // Load cached data
+  // ... keep existing code (useEffect hooks)
   useEffect(() => {
     const cachedLikes = cacheService.get<string[]>(CacheService.keys.postLikes(post.id));
     if (cachedLikes) {

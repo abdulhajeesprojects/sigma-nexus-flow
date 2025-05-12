@@ -1,3 +1,4 @@
+
 import { useState } from "react";
 import { motion } from "framer-motion";
 import { Image, Video, Users, Calendar, X } from "lucide-react";
@@ -7,7 +8,7 @@ import { auth, firestore, storage, database } from "@/lib/firebase";
 import { collection, addDoc, serverTimestamp } from "firebase/firestore";
 import { ref as storageRef, uploadBytes, getDownloadURL } from "firebase/storage";
 import { ref as dbRef, push } from "firebase/database";
-import { useToast } from "@/hooks/use-toast";
+import { toast } from "@/hooks/use-toast";
 import {
   Dialog,
   DialogContent,
@@ -28,7 +29,6 @@ const CreatePost = ({ onPostCreated }: CreatePostProps) => {
   const [imagePreview, setImagePreview] = useState<string | null>(null);
   const [showMediaComingSoon, setShowMediaComingSoon] = useState(false);
   const [mediaType, setMediaType] = useState<"image" | "video">("image");
-  const { toast } = useToast();
 
   const handleCreatePost = async () => {
     if (!auth.currentUser) {
