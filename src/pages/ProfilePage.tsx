@@ -2,13 +2,15 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
-import { doc, getDoc } from "firebase/firestore";
+import { doc, getDoc, collection, getDocs, query, where } from "firebase/firestore";
 import { auth, firestore } from "@/lib/firebase";
 import { Button } from "@/components/ui/button";
+import ProfileForm from "@/components/profile/ProfileForm";
 
 const ProfilePage = () => {
   const [user, setUser] = useState<any>(null);
   const [loading, setLoading] = useState(true);
+  const [isEditing, setIsEditing] = useState(false);
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -20,19 +22,28 @@ const ProfilePage = () => {
       }
 
       try {
+        // Fetch user profile from Firestore
         const userDoc = await getDoc(doc(firestore, "users", authUser.uid));
         
         if (userDoc.exists()) {
           setUser({
             ...userDoc.data(),
-            displayName: authUser.displayName,
+            id: authUser.uid,
+            displayName: userDoc.data().displayName || authUser.displayName,
+            email: authUser.email,
             photoURL: authUser.photoURL,
           });
         } else {
+          // Create a minimal user object if no profile found
           setUser({
+            id: authUser.uid,
             displayName: authUser.displayName,
             email: authUser.email,
             photoURL: authUser.photoURL,
+            headline: "",
+            location: "",
+            bio: "",
+            connectionCount: 0,
           });
         }
       } catch (error) {
@@ -43,7 +54,7 @@ const ProfilePage = () => {
     });
 
     return () => unsubscribe();
-  }, [navigate]);
+  }, [navigate, isEditing]);
 
   if (loading) {
     return (
@@ -57,50 +68,26 @@ const ProfilePage = () => {
     );
   }
 
-  // Mock data for profile display
-  const mockUser = {
-    displayName: user?.displayName || "User Name",
-    headline: user?.headline || "Full Stack Developer | React Specialist | UI/UX Enthusiast",
-    location: user?.location || "San Francisco, CA",
-    connections: 428,
-    about:
-      user?.bio || "I'm a passionate developer with over 5 years of experience building web applications with React, Node.js, and modern web technologies. I love creating beautiful, user-friendly interfaces and solving complex problems.",
-    experience: user?.experience || [
-      {
-        title: "Senior Frontend Developer",
-        company: "TechCorp",
-        duration: "Jan 2020 - Present",
-        description:
-          "Lead frontend development for multiple projects using React, TypeScript, and GraphQL.",
-      },
-      {
-        title: "Frontend Developer",
-        company: "WebSolutions Inc.",
-        duration: "Mar 2017 - Dec 2019",
-        description:
-          "Developed responsive web applications and implemented UI improvements.",
-      },
-    ],
-    education: user?.education || [
-      {
-        school: "University of Technology",
-        degree: "Bachelor of Science in Computer Science",
-        duration: "2013 - 2017",
-      },
-    ],
-    skills: user?.skills || [
-      "React",
-      "JavaScript",
-      "TypeScript",
-      "Node.js",
-      "GraphQL",
-      "CSS",
-      "Tailwind CSS",
-      "UI/UX Design",
-      "Redux",
-      "Jest",
-    ],
-  };
+  if (isEditing) {
+    return (
+      <div className="min-h-screen pt-20 px-4 bg-background">
+        <div className="container mx-auto">
+          <div className="max-w-4xl mx-auto">
+            <div className="flex items-center justify-between mb-6">
+              <h1 className="text-2xl font-bold">Edit Your Profile</h1>
+              <Button 
+                variant="outline" 
+                onClick={() => setIsEditing(false)}
+              >
+                Cancel
+              </Button>
+            </div>
+            <ProfileForm />
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen pt-20 pb-12 px-4 bg-background">
@@ -119,29 +106,32 @@ const ProfilePage = () => {
             {/* Profile Picture */}
             <div className="absolute top-20 md:top-24 left-8">
               <div className="w-24 h-24 rounded-full bg-sigma-blue/20 flex items-center justify-center text-sigma-blue text-4xl font-bold border-4 border-background">
-                {mockUser.displayName.charAt(0)}
+                {user.displayName?.charAt(0)}
               </div>
             </div>
 
             {/* Profile Info */}
             <div className="flex flex-col md:flex-row md:justify-between md:items-end">
               <div>
-                <h1 className="text-2xl font-bold mb-2">{mockUser.displayName}</h1>
-                <p className="text-muted-foreground mb-2">{mockUser.headline}</p>
+                <h1 className="text-2xl font-bold mb-2">{user.displayName}</h1>
+                <p className="text-muted-foreground mb-2">{user.headline || "Add a professional headline"}</p>
                 <div className="flex items-center text-sm text-muted-foreground mb-4">
-                  <span>{mockUser.location}</span>
+                  <span>{user.location || "Add location"}</span>
                   <span className="mx-2">•</span>
                   <span className="text-sigma-blue dark:text-sigma-purple">
-                    {mockUser.connections} connections
+                    {user.connectionCount || 0} connections
                   </span>
                 </div>
               </div>
 
               <div className="flex gap-3 mt-4 md:mt-0">
-                <Button className="bg-gradient-to-r from-sigma-blue to-sigma-purple hover:from-sigma-purple hover:to-sigma-blue text-white">
+                <Button 
+                  className="bg-gradient-to-r from-sigma-blue to-sigma-purple hover:from-sigma-purple hover:to-sigma-blue text-white"
+                  onClick={() => setIsEditing(true)}
+                >
                   Edit Profile
                 </Button>
-                <Button variant="outline">Share Profile</Button>
+                <Button variant="outline" onClick={() => navigate("/profile/share")}>Share Profile</Button>
               </div>
             </div>
           </motion.div>
@@ -154,7 +144,19 @@ const ProfilePage = () => {
             className="glass-card p-8 mb-6"
           >
             <h2 className="text-xl font-bold mb-4">About</h2>
-            <p className="whitespace-pre-line">{mockUser.about}</p>
+            <p className="whitespace-pre-line">
+              {user.bio || "Add information about yourself to help others understand your background and expertise."}
+            </p>
+            {!user.bio && (
+              <Button 
+                variant="outline" 
+                size="sm" 
+                className="mt-4"
+                onClick={() => setIsEditing(true)}
+              >
+                Add Bio
+              </Button>
+            )}
           </motion.div>
 
           {/* Experience Section */}
@@ -164,17 +166,31 @@ const ProfilePage = () => {
             transition={{ duration: 0.5, delay: 0.2 }}
             className="glass-card p-8 mb-6"
           >
-            <h2 className="text-xl font-bold mb-4">Experience</h2>
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-xl font-bold">Experience</h2>
+              <Button 
+                variant="outline" 
+                size="sm"
+                onClick={() => setIsEditing(true)}
+              >
+                Add Experience
+              </Button>
+            </div>
+            
             <div className="space-y-6">
-              {mockUser.experience.map((exp: any, index: number) => (
-                <div key={index} className="border-l-2 border-sigma-blue/50 dark:border-sigma-purple/50 pl-4">
-                  <h3 className="font-bold">{exp.title}</h3>
-                  <p className="text-muted-foreground">
-                    {exp.company} • {exp.duration}
-                  </p>
-                  <p className="mt-2">{exp.description}</p>
-                </div>
-              ))}
+              {user.experience && user.experience.length > 0 ? (
+                user.experience.map((exp: any, index: number) => (
+                  <div key={index} className="border-l-2 border-sigma-blue/50 dark:border-sigma-purple/50 pl-4">
+                    <h3 className="font-bold">{exp.title}</h3>
+                    <p className="text-muted-foreground">
+                      {exp.company} • {exp.duration}
+                    </p>
+                    <p className="mt-2">{exp.description}</p>
+                  </div>
+                ))
+              ) : (
+                <p className="text-muted-foreground">Add your work experience to showcase your professional journey.</p>
+              )}
             </div>
           </motion.div>
 
@@ -185,16 +201,30 @@ const ProfilePage = () => {
             transition={{ duration: 0.5, delay: 0.3 }}
             className="glass-card p-8 mb-6"
           >
-            <h2 className="text-xl font-bold mb-4">Education</h2>
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-xl font-bold">Education</h2>
+              <Button 
+                variant="outline" 
+                size="sm"
+                onClick={() => setIsEditing(true)}
+              >
+                Add Education
+              </Button>
+            </div>
+            
             <div className="space-y-6">
-              {mockUser.education.map((edu: any, index: number) => (
-                <div key={index} className="border-l-2 border-sigma-blue/50 dark:border-sigma-purple/50 pl-4">
-                  <h3 className="font-bold">{edu.school}</h3>
-                  <p className="text-muted-foreground">
-                    {edu.degree} • {edu.duration}
-                  </p>
-                </div>
-              ))}
+              {user.education && user.education.length > 0 ? (
+                user.education.map((edu: any, index: number) => (
+                  <div key={index} className="border-l-2 border-sigma-blue/50 dark:border-sigma-purple/50 pl-4">
+                    <h3 className="font-bold">{edu.school}</h3>
+                    <p className="text-muted-foreground">
+                      {edu.degree} • {edu.duration}
+                    </p>
+                  </div>
+                ))
+              ) : (
+                <p className="text-muted-foreground">Add your educational background to help others understand your qualifications.</p>
+              )}
             </div>
           </motion.div>
 
@@ -205,18 +235,32 @@ const ProfilePage = () => {
             transition={{ duration: 0.5, delay: 0.4 }}
             className="glass-card p-8"
           >
-            <h2 className="text-xl font-bold mb-4">Skills</h2>
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-xl font-bold">Skills</h2>
+              <Button 
+                variant="outline" 
+                size="sm"
+                onClick={() => setIsEditing(true)}
+              >
+                Add Skills
+              </Button>
+            </div>
+            
             <div className="flex flex-wrap gap-2">
-              {mockUser.skills.map((skill: string, index: number) => (
-                <motion.div
-                  key={index}
-                  whileHover={{ scale: 1.05 }}
-                  whileTap={{ scale: 0.95 }}
-                  className="bg-secondary/50 dark:bg-secondary/20 px-3 py-1 rounded-full text-sm"
-                >
-                  {skill}
-                </motion.div>
-              ))}
+              {user.skills && user.skills.length > 0 ? (
+                user.skills.map((skill: string, index: number) => (
+                  <motion.div
+                    key={index}
+                    whileHover={{ scale: 1.05 }}
+                    whileTap={{ scale: 0.95 }}
+                    className="bg-secondary/50 dark:bg-secondary/20 px-3 py-1 rounded-full text-sm"
+                  >
+                    {skill}
+                  </motion.div>
+                ))
+              ) : (
+                <p className="text-muted-foreground">Add skills to showcase your expertise to other professionals and potential employers.</p>
+              )}
             </div>
           </motion.div>
         </div>
