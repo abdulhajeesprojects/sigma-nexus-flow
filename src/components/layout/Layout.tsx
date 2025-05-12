@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from "react";
 import { Outlet, useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
@@ -69,7 +68,7 @@ const Layout = () => {
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           transition={{ duration: 0.5 }}
-          className="flex-1 pt-16"
+          className="flex-1"
         >
           <Outlet />
         </motion.main>

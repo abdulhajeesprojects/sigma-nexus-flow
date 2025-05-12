@@ -9,6 +9,13 @@ import { collection, addDoc, serverTimestamp } from "firebase/firestore";
 import { ref as storageRef, uploadBytes, getDownloadURL } from "firebase/storage";
 import { ref as dbRef, push } from "firebase/database";
 import { useToast } from "@/hooks/use-toast";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import MediaComingSoon from "./MediaComingSoon";
 
 interface CreatePostProps {
   onPostCreated?: () => void;
@@ -20,6 +27,8 @@ const CreatePost = ({ onPostCreated }: CreatePostProps) => {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
+  const [showMediaComingSoon, setShowMediaComingSoon] = useState(false);
+  const [mediaType, setMediaType] = useState<"image" | "video">("image");
   const { toast } = useToast();
 
   const handleCreatePost = async () => {
@@ -31,40 +40,22 @@ const CreatePost = ({ onPostCreated }: CreatePostProps) => {
       return;
     }
     
-    if (!content.trim() && !selectedFile) {
+    if (!content.trim()) {
       toast({ 
         title: "Empty post", 
-        description: "Please add some text or an image to your post" 
+        description: "Please add some text to your post" 
       });
       return;
     }
     
     setIsSubmitting(true);
     
-    try {
-      let imageUrl = "";
-      
-      // Upload image if selected
-      if (selectedFile) {
-        const imageStorageRef = storageRef(storage, `posts/${auth.currentUser.uid}/${Date.now()}-${selectedFile.name}`);
-        const uploadResult = await uploadBytes(imageStorageRef, selectedFile);
-        imageUrl = await getDownloadURL(uploadResult.ref);
-        
-        // Also store reference in realtime database
-        const mediaRef = dbRef(database, `users/${auth.currentUser.uid}/media/posts`);
-        await push(mediaRef, {
-          type: selectedFile.type.includes("video") ? "video" : "image",
-          url: imageUrl,
-          fileName: selectedFile.name,
-          uploadedAt: new Date().toISOString()
-        });
-      }
-      
+    try {      
       // Create post document
       const postData = {
         userId: auth.currentUser.uid,
         content: content.trim(),
-        imageUrl: imageUrl || null,
+        imageUrl: null,
         likes: 0,
         comments: 0,
         shares: 0,
@@ -102,34 +93,9 @@ const CreatePost = ({ onPostCreated }: CreatePostProps) => {
     }
   };
 
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files && e.target.files[0]) {
-      const file = e.target.files[0];
-      
-      // Validate file size (10MB limit)
-      if (file.size > 10 * 1024 * 1024) {
-        toast({
-          title: "File too large",
-          description: "Please select an image smaller than 10MB",
-          variant: "destructive",
-        });
-        return;
-      }
-      
-      setSelectedFile(file);
-      
-      // Create preview
-      const reader = new FileReader();
-      reader.onload = (event) => {
-        setImagePreview(event.target?.result as string);
-      };
-      reader.readAsDataURL(file);
-    }
-  };
-
-  const removeSelectedFile = () => {
-    setSelectedFile(null);
-    setImagePreview(null);
+  const handleShowMediaDialog = (type: "image" | "video") => {
+    setMediaType(type);
+    setShowMediaComingSoon(true);
   };
 
   return (
@@ -158,39 +124,17 @@ const CreatePost = ({ onPostCreated }: CreatePostProps) => {
               rows={3}
             />
             
-            {imagePreview && (
-              <div className="relative mb-3 rounded-md overflow-hidden border">
-                <img 
-                  src={imagePreview} 
-                  alt="Preview" 
-                  className="max-h-64 w-full object-contain bg-black/5"
-                />
-                <Button
-                  variant="destructive"
-                  size="icon"
-                  className="absolute top-2 right-2 h-8 w-8 rounded-full"
-                  onClick={removeSelectedFile}
-                >
-                  <X className="h-4 w-4" />
-                </Button>
-              </div>
-            )}
-            
             <div className="flex justify-between items-center">
               <div className="flex space-x-2">
-                <label className="cursor-pointer">
-                  <input 
-                    type="file" 
-                    accept="image/*,video/*" 
-                    className="hidden" 
-                    onChange={handleFileChange}
-                    disabled={!!selectedFile}
-                  />
-                  <Button type="button" variant="outline" size="sm">
-                    <Image className="w-4 h-4 mr-2" />
-                    <span>Add Media</span>
-                  </Button>
-                </label>
+                <Button 
+                  type="button" 
+                  variant="outline" 
+                  size="sm"
+                  onClick={() => handleShowMediaDialog("image")}
+                >
+                  <Image className="w-4 h-4 mr-2" />
+                  <span>Add Media</span>
+                </Button>
               </div>
               
               <div className="flex space-x-2">
@@ -210,7 +154,7 @@ const CreatePost = ({ onPostCreated }: CreatePostProps) => {
                 <Button
                   size="sm"
                   onClick={handleCreatePost}
-                  disabled={((!content.trim() && !selectedFile) || isSubmitting)}
+                  disabled={!content.trim() || isSubmitting}
                   className="bg-gradient-to-r from-sigma-blue to-sigma-purple hover:from-sigma-purple hover:to-sigma-blue text-white"
                 >
                   {isSubmitting ? "Posting..." : "Post"}
@@ -232,14 +176,14 @@ const CreatePost = ({ onPostCreated }: CreatePostProps) => {
         <div className="flex justify-between">
           <button 
             className="flex items-center space-x-2 text-sm text-muted-foreground hover:text-foreground transition-colors"
-            onClick={() => setIsExpanded(true)}
+            onClick={() => handleShowMediaDialog("image")}
           >
             <Image className="w-5 h-5" />
             <span>Photo</span>
           </button>
           <button 
             className="flex items-center space-x-2 text-sm text-muted-foreground hover:text-foreground transition-colors"
-            onClick={() => setIsExpanded(true)}
+            onClick={() => handleShowMediaDialog("video")}
           >
             <Video className="w-5 h-5" />
             <span>Video</span>
@@ -260,6 +204,18 @@ const CreatePost = ({ onPostCreated }: CreatePostProps) => {
           </button>
         </div>
       )}
+
+      {/* Media Coming Soon Dialog */}
+      <Dialog open={showMediaComingSoon} onOpenChange={setShowMediaComingSoon}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Media Upload</DialogTitle>
+          </DialogHeader>
+          <div className="py-4">
+            <MediaComingSoon type={mediaType} />
+          </div>
+        </DialogContent>
+      </Dialog>
     </motion.div>
   );
 };

@@ -1,11 +1,10 @@
-
 import { useState } from "react";
 import { motion } from "framer-motion";
 import { formatDistanceToNow } from "date-fns";
-import { MessageSquare, Heart, Share2, Bookmark, ThumbsUp, MoreHorizontal, Edit, Trash2 } from "lucide-react";
+import { MessageSquare, Heart, Share2, Bookmark, ThumbsUp, MoreHorizontal, Edit, Trash2, User, Send } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { auth, firestore, database } from "@/lib/firebase";
-import { doc, updateDoc, increment, arrayUnion, arrayRemove, deleteDoc, getDoc } from "firebase/firestore";
+import { doc, updateDoc, increment, arrayUnion, arrayRemove, deleteDoc, getDoc, collection, addDoc, serverTimestamp, query, where, orderBy, getDocs } from "firebase/firestore";
 import { ref as dbRef, push } from "firebase/database";
 import { Link } from "react-router-dom";
 import { useToast } from "@/hooks/use-toast";
@@ -18,6 +17,7 @@ import {
 import { Textarea } from "@/components/ui/textarea";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert";
+import MediaComingSoon from "./MediaComingSoon";
 
 interface PostItemProps {
   post: {
@@ -39,6 +39,15 @@ interface PostItemProps {
   refreshPosts?: () => void;
 }
 
+interface Comment {
+  id: string;
+  content: string;
+  userId: string;
+  displayName: string;
+  photoURL?: string;
+  createdAt: any;
+}
+
 const PostItem = ({ post, refreshPosts }: PostItemProps) => {
   const [isLiked, setIsLiked] = useState(
     post.likedBy?.includes(auth.currentUser?.uid || "") || false
@@ -47,6 +56,10 @@ const PostItem = ({ post, refreshPosts }: PostItemProps) => {
   const [editedContent, setEditedContent] = useState(post.content);
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
+  const [showComments, setShowComments] = useState(false);
+  const [commentText, setCommentText] = useState("");
+  const [comments, setComments] = useState<Comment[]>([]);
+  const [loadingComments, setLoadingComments] = useState(false);
   const { toast } = useToast();
 
   const isAuthor = auth.currentUser?.uid === post.userId;
@@ -180,11 +193,125 @@ const PostItem = ({ post, refreshPosts }: PostItemProps) => {
     }
   };
 
-  const handleComment = () => {
-    toast({
-      title: "Coming soon",
-      description: "Comment functionality will be available soon",
-    });
+  const handleComment = async () => {
+    if (!showComments) {
+      setShowComments(true);
+      fetchComments();
+    } else {
+      setShowComments(false);
+    }
+  };
+
+  const fetchComments = async () => {
+    if (!auth.currentUser) return;
+    
+    setLoadingComments(true);
+    
+    try {
+      const commentsQuery = query(
+        collection(firestore, "comments"),
+        where("postId", "==", post.id),
+        orderBy("createdAt", "desc")
+      );
+      
+      const commentsSnapshot = await getDocs(commentsQuery);
+      
+      if (commentsSnapshot.empty) {
+        setComments([]);
+        setLoadingComments(false);
+        return;
+      }
+      
+      const fetchedComments: Comment[] = await Promise.all(
+        commentsSnapshot.docs.map(async (commentDoc) => {
+          const commentData = commentDoc.data();
+          
+          // Try to get user data
+          let displayName = "User";
+          let photoURL = undefined;
+          
+          try {
+            const userDoc = await getDoc(doc(firestore, "users", commentData.userId));
+            if (userDoc.exists()) {
+              const userData = userDoc.data();
+              displayName = userData.displayName || "User";
+              photoURL = userData.photoURL || undefined;
+            }
+          } catch (error) {
+            console.error("Error fetching user data:", error);
+          }
+          
+          return {
+            id: commentDoc.id,
+            content: commentData.content,
+            userId: commentData.userId,
+            displayName,
+            photoURL,
+            createdAt: commentData.createdAt
+          };
+        })
+      );
+      
+      setComments(fetchedComments);
+    } catch (error) {
+      console.error("Error fetching comments:", error);
+      toast({
+        title: "Error",
+        description: "Failed to load comments",
+        variant: "destructive",
+      });
+    } finally {
+      setLoadingComments(false);
+    }
+  };
+
+  const submitComment = async () => {
+    if (!auth.currentUser || !commentText.trim()) return;
+    
+    try {
+      const commentData = {
+        postId: post.id,
+        userId: auth.currentUser.uid,
+        content: commentText.trim(),
+        createdAt: serverTimestamp()
+      };
+      
+      await addDoc(collection(firestore, "comments"), commentData);
+      
+      // Increment comments count on post
+      const postRef = doc(firestore, "posts", post.id);
+      await updateDoc(postRef, {
+        comments: increment(1)
+      });
+      
+      // Add notification if not your own post
+      if (post.userId !== auth.currentUser.uid) {
+        // Store notification in realtime database
+        const notifRef = dbRef(database, `notifications/${post.userId}`);
+        await push(notifRef, {
+          type: "comment",
+          postId: post.id,
+          from: auth.currentUser.uid,
+          fromName: auth.currentUser.displayName,
+          fromPhoto: auth.currentUser.photoURL,
+          message: "commented on your post",
+          isRead: false,
+          timestamp: new Date().toISOString()
+        });
+      }
+      
+      setCommentText("");
+      fetchComments(); // Refresh comments
+      
+      if (refreshPosts) refreshPosts();
+    } catch (error) {
+      console.error("Error submitting comment:", error);
+      toast({
+        title: "Error",
+        description: "Failed to submit your comment",
+        variant: "destructive",
+      });
+    }
   };
 
   const handleShare = async () => {
@@ -340,18 +467,10 @@ const PostItem = ({ post, refreshPosts }: PostItemProps) => {
         <div className="mb-4">
           <p className="whitespace-pre-line">{post.content}</p>
           
-          {/* Display post image if available */}
+          {/* Display "Coming Soon" for media content instead of the actual media */}
           {post.imageUrl && (
-            <div className="mt-3 rounded-lg overflow-hidden">
-              <img 
-                src={post.imageUrl} 
-                alt="Post" 
-                className="w-full object-cover max-h-96"
-                onError={(e) => {
-                  // Hide broken images
-                  (e.target as HTMLImageElement).style.display = 'none';
-                }}
-              />
+            <div className="mt-3">
+              <MediaComingSoon type={post.imageUrl.includes('.mp4') ? 'video' : 'image'} />
             </div>
           )}
         </div>
@@ -405,6 +524,79 @@ const PostItem = ({ post, refreshPosts }: PostItemProps) => {
           <span>Save</span>
         </Button>
       </div>
+      
+      {/* Comments section */}
+      {showComments && (
+        <div className="mt-4 pt-4 border-t">
+          {/* Comment input */}
+          <div className="flex items-start space-x-2 mb-4">
+            <div className="w-8 h-8 rounded-full bg-sigma-blue/20 flex-shrink-0 flex items-center justify-center text-xs font-medium text-sigma-blue">
+              {auth.currentUser?.photoURL ? (
+                <img src={auth.currentUser.photoURL} alt={auth.currentUser.displayName || ""} className="w-full h-full rounded-full object-cover" />
+              ) : (
+                auth.currentUser?.displayName?.charAt(0) || "U"
+              )}
+            </div>
+            <div className="flex-1 flex items-end">
+              <Textarea
+                placeholder="Write a comment..."
+                className="w-full resize-none rounded-2xl text-sm min-h-[40px] py-2"
+                value={commentText}
+                onChange={(e) => setCommentText(e.target.value)}
+                rows={1}
+              />
+              <Button 
+                size="sm" 
+                variant="ghost" 
+                onClick={submitComment} 
+                disabled={!commentText.trim()}
+                className="ml-2"
+              >
+                <Send className="h-4 w-4" />
+              </Button>
+            </div>
+          </div>
+          
+          {/* Comments list */}
+          {loadingComments ? (
+            <div className="text-center py-4">
+              <div className="w-6 h-6 border-2 border-sigma-purple border-t-transparent rounded-full animate-spin mx-auto"></div>
+              <p className="text-sm text-muted-foreground mt-2">Loading comments...</p>
+            </div>
+          ) : comments.length > 0 ? (
+            <div className="space-y-4">
+              {comments.map((comment) => (
+                <div key={comment.id} className="flex space-x-2">
+                  <Link to={`/profile/${comment.userId}`} className="flex-shrink-0">
+                    <div className="w-8 h-8 rounded-full bg-sigma-purple/20 flex items-center justify-center text-xs font-medium text-sigma-purple">
+                      {comment.photoURL ? (
+                        <img src={comment.photoURL} alt={comment.displayName} className="w-full h-full rounded-full object-cover" />
+                      ) : (
+                        <User className="h-4 w-4" />
+                      )}
+                    </div>
+                  </Link>
+                  <div className="flex-1">
+                    <div className="bg-secondary/30 dark:bg-secondary/20 rounded-lg py-2 px-3">
+                      <Link to={`/profile/${comment.userId}`} className="font-medium text-sm hover:underline">
+                        {comment.displayName}
+                      </Link>
+                      <p className="text-sm">{comment.content}</p>
+                    </div>
+                    <p className="text-xs text-muted-foreground mt-1">
+                      {comment.createdAt ? 
+                        formatDistanceToNow(comment.createdAt.toDate(), { addSuffix: true }) : 
+                        "just now"}
+                    </p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <p className="text-center text-muted-foreground py-4">No comments yet. Be the first to comment.</p>
+          )}
+        </div>
+      )}
 
       {/* Delete Confirmation Dialog */}
       <Dialog open={deleteConfirmOpen} onOpenChange={setDeleteConfirmOpen}>

@@ -13,6 +13,7 @@ import NetworkPage from "./pages/NetworkPage";
 import ConnectionRequestsPage from "./pages/ConnectionRequestsPage";
 import MessagesPage from "./pages/MessagesPage";
 import JobsPage from "./pages/JobsPage";
+import SettingsPage from "./pages/SettingsPage";
 import NotFound from "./pages/NotFound";
 import Layout from "./components/layout/Layout";
 import { Toaster } from "./components/ui/toaster";
@@ -105,6 +106,7 @@ function App() {
                 <Route path="/requests" element={<ConnectionRequestsPage />} />
                 <Route path="/messages" element={<MessagesPage />} />
                 <Route path="/jobs" element={<JobsPage />} />
+                <Route path="/settings" element={<SettingsPage />} />
                 <Route path="*" element={<NotFound />} />
               </Route>
             </Routes>

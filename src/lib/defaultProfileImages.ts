@@ -1,61 +1,53 @@
 
-// Array of professional cartoon profile images
 export const defaultProfileImages = [
   {
-    id: 1,
-    url: "https://firebasestorage.googleapis.com/v0/b/ah-sigma-hub.appspot.com/o/default-profiles%2Fprofile-1.png?alt=media&token=d9f9f9fc-6fbb-4e10-9e35-9ca4c49752a2",
-    alt: "Professional avatar with glasses"
+    id: 'cartoon1',
+    url: 'https://api.dicebear.com/7.x/micah/svg?seed=John&backgroundColor=b6e3f4',
+    alt: 'Cartoon Profile Image 1'
   },
   {
-    id: 2,
-    url: "https://firebasestorage.googleapis.com/v0/b/ah-sigma-hub.appspot.com/o/default-profiles%2Fprofile-2.png?alt=media&token=e8f8f9fc-6fbb-4e10-9e35-9ca4c49752a2",
-    alt: "Business professional with tie"
+    id: 'cartoon2',
+    url: 'https://api.dicebear.com/7.x/micah/svg?seed=Jane&backgroundColor=d1d4f9',
+    alt: 'Cartoon Profile Image 2'
   },
   {
-    id: 3,
-    url: "https://firebasestorage.googleapis.com/v0/b/ah-sigma-hub.appspot.com/o/default-profiles%2Fprofile-3.png?alt=media&token=b7f9f9fc-6fbb-4e10-9e35-9ca4c49752a2",
-    alt: "Creative professional with colorful background"
+    id: 'cartoon3',
+    url: 'https://api.dicebear.com/7.x/micah/svg?seed=Mike&backgroundColor=c0aede',
+    alt: 'Cartoon Profile Image 3'
   },
   {
-    id: 4,
-    url: "https://firebasestorage.googleapis.com/v0/b/ah-sigma-hub.appspot.com/o/default-profiles%2Fprofile-4.png?alt=media&token=c6f9f9fc-6fbb-4e10-9e35-9ca4c49752a2",
-    alt: "Tech professional with headphones"
+    id: 'cartoon4',
+    url: 'https://api.dicebear.com/7.x/micah/svg?seed=Sarah&backgroundColor=ffdfbf',
+    alt: 'Cartoon Profile Image 4'
   },
   {
-    id: 5,
-    url: "https://firebasestorage.googleapis.com/v0/b/ah-sigma-hub.appspot.com/o/default-profiles%2Fprofile-5.png?alt=media&token=a5f9f9fc-6fbb-4e10-9e35-9ca4c49752a2",
-    alt: "Business casual with blazer"
+    id: 'cartoon5',
+    url: 'https://api.dicebear.com/7.x/micah/svg?seed=David&backgroundColor=ffd5dc',
+    alt: 'Cartoon Profile Image 5'
   },
   {
-    id: 6,
-    url: "https://firebasestorage.googleapis.com/v0/b/ah-sigma-hub.appspot.com/o/default-profiles%2Fprofile-6.png?alt=media&token=f4f9f9fc-6fbb-4e10-9e35-9ca4c49752a2",
-    alt: "Minimalist professional avatar"
+    id: 'cartoon6',
+    url: 'https://api.dicebear.com/7.x/micah/svg?seed=Emma&backgroundColor=bee1ff',
+    alt: 'Cartoon Profile Image 6'
   },
   {
-    id: 7,
-    url: "https://firebasestorage.googleapis.com/v0/b/ah-sigma-hub.appspot.com/o/default-profiles%2Fprofile-7.png?alt=media&token=g3f9f9fc-6fbb-4e10-9e35-9ca4c49752a2",
-    alt: "Formal business professional"
+    id: 'cartoon7',
+    url: 'https://api.dicebear.com/7.x/micah/svg?seed=James&backgroundColor=c1e1c5',
+    alt: 'Cartoon Profile Image 7'
   },
   {
-    id: 8,
-    url: "https://firebasestorage.googleapis.com/v0/b/ah-sigma-hub.appspot.com/o/default-profiles%2Fprofile-8.png?alt=media&token=h2f9f9fc-6fbb-4e10-9e35-9ca4c49752a2",
-    alt: "Casual professional with smile"
+    id: 'cartoon8',
+    url: 'https://api.dicebear.com/7.x/micah/svg?seed=Olivia&backgroundColor=ffc0cb',
+    alt: 'Cartoon Profile Image 8'
   },
   {
-    id: 9,
-    url: "https://firebasestorage.googleapis.com/v0/b/ah-sigma-hub.appspot.com/o/default-profiles%2Fprofile-9.png?alt=media&token=i1f9f9fc-6fbb-4e10-9e35-9ca4c49752a2",
-    alt: "Modern professional avatar"
+    id: 'cartoon9',
+    url: 'https://api.dicebear.com/7.x/micah/svg?seed=William&backgroundColor=b0e0e6',
+    alt: 'Cartoon Profile Image 9'
   },
   {
-    id: 10,
-    url: "https://firebasestorage.googleapis.com/v0/b/ah-sigma-hub.appspot.com/o/default-profiles%2Fprofile-10.png?alt=media&token=j0f9f9fc-6fbb-4e10-9e35-9ca4c49752a2",
-    alt: "Executive professional look"
+    id: 'cartoon10',
+    url: 'https://api.dicebear.com/7.x/micah/svg?seed=Sophia&backgroundColor=d8bfd8',
+    alt: 'Cartoon Profile Image 10'
   }
 ];
-
-export const getRandomDefaultProfileImage = () => {
-  const randomIndex = Math.floor(Math.random() * defaultProfileImages.length);
-  return defaultProfileImages[randomIndex];
-};
-
-export default defaultProfileImages;
