@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
-import { useToast } from "@/hooks/use-toast";
+import { toast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -14,7 +14,6 @@ const AuthPage = () => {
   const [password, setPassword] = useState("");
   const [name, setName] = useState("");
   const { signIn, signUp, currentUser } = useAuth();
-  const { toast } = useToast();
   const navigate = useNavigate();
   const location = useLocation();
 
@@ -34,13 +33,13 @@ const AuthPage = () => {
       await signIn(email, password);
       toast({
         title: "Welcome back!",
-        description: "You have successfully signed in.",
+        description: "You have successfully signed in."
       });
     } catch (error) {
       toast({
         title: "Error",
         description: error instanceof Error ? error.message : "Failed to sign in",
-        variant: "destructive",
+        variant: "destructive"
       });
     } finally {
       setIsLoading(false);
@@ -54,13 +53,13 @@ const AuthPage = () => {
       await signUp(email, password, name);
       toast({
         title: "Welcome!",
-        description: "Your account has been created successfully.",
+        description: "Your account has been created successfully."
       });
     } catch (error) {
       toast({
         title: "Error",
         description: error instanceof Error ? error.message : "Failed to create account",
-        variant: "destructive",
+        variant: "destructive"
       });
     } finally {
       setIsLoading(false);

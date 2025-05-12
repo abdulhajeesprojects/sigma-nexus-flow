@@ -1,11 +1,10 @@
-
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
-import { signUp } from "@/services/auth";
+import { registerWithEmailPassword as signUp } from "@/services/auth";
 import { Eye, EyeOff } from "lucide-react";
 
 interface SignUpFormProps {
@@ -29,7 +28,7 @@ const SignUpForm = ({ onSwitch }: SignUpFormProps) => {
       toast({
         title: "Passwords don't match",
         description: "Please make sure your passwords match",
-        variant: "destructive",
+        variant: "destructive"
       });
       return;
     }
@@ -37,20 +36,18 @@ const SignUpForm = ({ onSwitch }: SignUpFormProps) => {
     setLoading(true);
     
     try {
-      const { user } = await signUp(email, password, fullName);
+      await signUp(email, password, fullName);
       
-      if (user) {
-        toast({
-          title: "Account created!",
-          description: "Welcome to SiGMA Hub! Let's set up your profile.",
-        });
-        navigate("/profile");
-      }
+      toast({
+        title: "Account created!",
+        description: "Welcome to SiGMA Hub! Let's set up your profile."
+      });
+      navigate("/profile");
     } catch (error: any) {
       toast({
         title: "Sign Up Failed",
         description: error.message || "There was a problem creating your account",
-        variant: "destructive",
+        variant: "destructive"
       });
     } finally {
       setLoading(false);

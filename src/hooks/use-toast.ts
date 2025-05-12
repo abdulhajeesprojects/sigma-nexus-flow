@@ -25,12 +25,18 @@ const toasts: ToasterToast[] = [];
 
 const useToast = () => {
   return {
-    toast: ({ ...props }: ToasterToast) => {
+    toast: ({ ...props }: Omit<ToasterToast, "id">) => {
+      const id = String(Date.now());
       shadowToast(props.title as string, {
+        id,
         description: props.description,
+        variant: props.variant,
       });
+      return { id };
     },
-    dismiss: (toastId?: string) => {},
+    dismiss: (toastId?: string) => {
+      shadowToast.dismiss(toastId);
+    },
     toasts: [] as ToasterToast[],
   };
 };

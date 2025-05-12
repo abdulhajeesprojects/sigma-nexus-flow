@@ -1,11 +1,10 @@
-
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
-import { signIn, resetPassword } from "@/services/auth";
+import { signInWithEmail as signIn, resetPassword } from "@/services/auth";
 import { Eye, EyeOff } from "lucide-react";
 
 interface SignInFormProps {
@@ -25,20 +24,18 @@ const SignInForm = ({ onSwitch }: SignInFormProps) => {
     setLoading(true);
     
     try {
-      const { user } = await signIn(email, password);
+      await signIn(email, password);
       
-      if (user) {
-        toast({
-          title: "Welcome back! 🎉",
-          description: "Successfully signed in to SiGMA Hub",
-        });
-        navigate("/feed");
-      }
+      toast({
+        title: "Welcome back! 🎉",
+        description: "Successfully signed in to SiGMA Hub"
+      });
+      navigate("/feed");
     } catch (error: any) {
       toast({
         title: "Sign In Failed",
         description: error.message || "Please check your credentials and try again",
-        variant: "destructive",
+        variant: "destructive"
       });
     } finally {
       setLoading(false);
@@ -50,7 +47,7 @@ const SignInForm = ({ onSwitch }: SignInFormProps) => {
       toast({
         title: "Email Required",
         description: "Please enter your email address to reset your password",
-        variant: "destructive",
+        variant: "destructive"
       });
       return;
     }
@@ -59,13 +56,13 @@ const SignInForm = ({ onSwitch }: SignInFormProps) => {
       await resetPassword(email);
       toast({
         title: "Password Reset Email Sent",
-        description: "Check your email for instructions to reset your password",
+        description: "Check your email for instructions to reset your password"
       });
     } catch (error: any) {
       toast({
         title: "Password Reset Failed",
         description: error.message || "Please check your email and try again",
-        variant: "destructive",
+        variant: "destructive"
       });
     }
   };

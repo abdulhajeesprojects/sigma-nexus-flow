@@ -1,3 +1,4 @@
+
 import React, { useEffect, Suspense } from "react";
 import { Routes, Route, useNavigate, useLocation } from "react-router-dom";
 import HomePage from "./pages/HomePage";
@@ -16,11 +17,11 @@ import SettingsPage from "./pages/SettingsPage";
 import SupportPage from "./pages/SupportPage";
 import NotFound from "./pages/NotFound";
 import Layout from "./components/layout/Layout";
-import { Toaster } from "@/components/ui/toaster";
+import { Toaster } from "@/components/ui/sonner";
 import { ThemeProvider } from "./providers/ThemeProvider";
 import { AuthProvider } from "./contexts/AuthContext";
 import "./App.css";
-import { useToast } from "@/hooks/use-toast";
+import { toast } from "@/hooks/use-toast";
 import { auth } from "@/lib/firebase";
 import { onAuthStateChanged } from "firebase/auth";
 import NavbarActions from "@/components/layout/Navbar";
@@ -93,7 +94,6 @@ const LoadingFallback = () => (
 function App() {
   const navigate = useNavigate();
   const location = useLocation();
-  const { toast } = useToast();
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (user) => {
@@ -102,13 +102,13 @@ function App() {
         toast({
           title: "Authentication Required",
           description: "Please sign in to continue",
-          variant: "destructive",
+          variant: "destructive"
         });
       }
     });
 
     return () => unsubscribe();
-  }, [navigate, location.pathname, toast]);
+  }, [navigate, location.pathname]);
 
   return (
     <AppErrorBoundary>

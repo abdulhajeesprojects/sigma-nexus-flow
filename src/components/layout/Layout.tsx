@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { Outlet, useNavigate, useLocation } from "react-router-dom";
 import { motion } from "framer-motion";
 import { useAuth } from "@/contexts/AuthContext";
-import { useToast } from "@/hooks/use-toast";
+import { toast } from "@/hooks/use-toast";
 import Navbar from "./Navbar";
 import Footer from "./Footer";
 
@@ -11,7 +11,6 @@ const PUBLIC_PAGES = ['/auth', '/about', '/features', '/pricing', '/support'];
 
 const Layout = () => {
   const { currentUser, loading } = useAuth();
-  const { toast } = useToast();
   const [error, setError] = useState<Error | null>(null);
   const navigate = useNavigate();
   const location = useLocation();
@@ -23,10 +22,10 @@ const Layout = () => {
       toast({
         title: "Authentication Required",
         description: "Please sign in to continue",
-        variant: "destructive",
+        variant: "destructive"
       });
     }
-  }, [currentUser, loading, location.pathname, navigate, toast]);
+  }, [currentUser, loading, location.pathname, navigate]);
 
   // Clear error state when route changes
   useEffect(() => {
