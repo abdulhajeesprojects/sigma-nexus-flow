@@ -1,24 +1,13 @@
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { Outlet } from "react-router-dom";
 import { motion } from "framer-motion";
-import { onAuthStateChanged } from "firebase/auth";
-import { auth } from "@/lib/firebase";
+import { useAuth } from "@/hooks/use-auth";
 import Navbar from "./Navbar";
 import Footer from "./Footer";
 
 const Layout = () => {
-  const [isAuthenticated, setIsAuthenticated] = useState(false);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, (user) => {
-      setIsAuthenticated(!!user);
-      setLoading(false);
-    });
-
-    return () => unsubscribe();
-  }, []);
+  const { loading } = useAuth();
 
   if (loading) {
     return (
@@ -33,7 +22,7 @@ const Layout = () => {
 
   return (
     <div className="flex flex-col min-h-screen">
-      <Navbar isAuthenticated={isAuthenticated} />
+      <Navbar />
       <motion.main 
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}

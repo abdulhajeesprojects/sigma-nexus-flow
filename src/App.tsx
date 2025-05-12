@@ -1,3 +1,4 @@
+
 import { useEffect } from "react";
 import { Routes, Route } from "react-router-dom";
 import HomePage from "./pages/HomePage";
@@ -16,6 +17,7 @@ import NotFound from "./pages/NotFound";
 import Layout from "./components/layout/Layout";
 import { Toaster } from "./components/ui/toaster";
 import { ThemeProvider } from "./providers/ThemeProvider";
+import { AuthProvider } from "./hooks/use-auth";
 import "./App.css";
 
 function App() {
@@ -32,24 +34,26 @@ function App() {
   return (
     <>
       <ThemeProvider defaultTheme="dark" storageKey="sigma-theme">
-        <Routes>
-          <Route element={<Layout />}>
-            <Route path="/" element={<HomePage />} />
-            <Route path="/about" element={<AboutPage />} />
-            <Route path="/features" element={<FeaturesPage />} />
-            <Route path="/pricing" element={<PricingPage />} />
-            <Route path="/auth" element={<AuthPage />} />
-            <Route path="/feed" element={<FeedPage />} />
-            <Route path="/profile" element={<ProfilePage />} />
-            <Route path="/profile/:userId" element={<UserProfilePage />} />
-            <Route path="/network" element={<NetworkPage />} />
-            <Route path="/requests" element={<ConnectionRequestsPage />} />
-            <Route path="/messages" element={<MessagesPage />} />
-            <Route path="/jobs" element={<JobsPage />} />
-            <Route path="*" element={<NotFound />} />
-          </Route>
-        </Routes>
-        <Toaster />
+        <AuthProvider>
+          <Routes>
+            <Route element={<Layout />}>
+              <Route path="/" element={<HomePage />} />
+              <Route path="/about" element={<AboutPage />} />
+              <Route path="/features" element={<FeaturesPage />} />
+              <Route path="/pricing" element={<PricingPage />} />
+              <Route path="/auth" element={<AuthPage />} />
+              <Route path="/feed" element={<FeedPage />} />
+              <Route path="/profile" element={<ProfilePage />} />
+              <Route path="/profile/:userId" element={<UserProfilePage />} />
+              <Route path="/network" element={<NetworkPage />} />
+              <Route path="/requests" element={<ConnectionRequestsPage />} />
+              <Route path="/messages" element={<MessagesPage />} />
+              <Route path="/jobs" element={<JobsPage />} />
+              <Route path="*" element={<NotFound />} />
+            </Route>
+          </Routes>
+          <Toaster />
+        </AuthProvider>
       </ThemeProvider>
     </>
   );
