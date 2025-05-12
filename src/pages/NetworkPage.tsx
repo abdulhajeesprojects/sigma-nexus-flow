@@ -8,9 +8,25 @@ import { Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
 
+interface Connection {
+  id: string;
+  userId: string;
+  connectionId: string;
+  status: string;
+  createdAt: any;
+  name?: string;
+  title?: string;
+}
+
+interface UserProfile {
+  id: string;
+  displayName: string;
+  headline?: string;
+}
+
 const NetworkPage = () => {
-  const [connections, setConnections] = useState<any[]>([]);
-  const [suggestedConnections, setSuggestedConnections] = useState<any[]>([]);
+  const [connections, setConnections] = useState<Connection[]>([]);
+  const [suggestedConnections, setSuggestedConnections] = useState<UserProfile[]>([]);
   const [loading, setLoading] = useState(true);
   const navigate = useNavigate();
   const { toast } = useToast();
@@ -35,7 +51,7 @@ const NetworkPage = () => {
         const connectionsData = connectionsSnapshot.docs.map((doc) => ({
           id: doc.id,
           ...doc.data(),
-        }));
+        })) as Connection[];
         
         setConnections(connectionsData);
 
@@ -52,7 +68,7 @@ const NetworkPage = () => {
           .map(doc => ({
             id: doc.id,
             ...doc.data(),
-          }));
+          })) as UserProfile[];
         
         setSuggestedConnections(usersData);
       } catch (error) {

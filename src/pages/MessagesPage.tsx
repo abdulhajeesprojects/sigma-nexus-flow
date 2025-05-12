@@ -92,9 +92,12 @@ const MessagesPage = () => {
           
           return {
             id: docSnap.id,
-            ...conversationData,
+            participants: conversationData.participants,
+            lastMessage: conversationData.lastMessage || "",
+            lastMessageTime: conversationData.lastMessageTime,
+            unreadCount: conversationData.unreadCount || 0,
             otherUser: otherUserData,
-          };
+          } as Conversation;
         });
         
         const conversationsData = await Promise.all(conversationsPromises);
