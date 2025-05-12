@@ -13,6 +13,7 @@ import {
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import { useToast } from "@/hooks/use-toast";
 import { AlignJustify, LogOut } from "lucide-react";
+import ThemeToggle from "@/components/theme/ThemeToggle";
 
 const Navbar = () => {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
@@ -131,6 +132,11 @@ const Navbar = () => {
 
         {/* Profile Menu / Auth Buttons */}
         <div className="flex items-center space-x-3">
+          {/* Theme Toggle Button - Now visible */}
+          <div className="mr-2">
+            <ThemeToggle />
+          </div>
+          
           {currentUser ? (
             <DropdownMenu>
               <DropdownMenuTrigger asChild>

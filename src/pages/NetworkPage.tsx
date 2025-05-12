@@ -7,7 +7,7 @@ import { firestore, auth } from "@/lib/firebase";
 import { Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
-import { sendConnectionRequest, acceptConnectionRequest, rejectConnectionRequest } from "@/services/firestore";
+import { sendConnectionRequest, getAllUsers } from "@/services/firestore";
 import { UserPlus, Check, X } from "lucide-react";
 
 interface Connection {
@@ -49,8 +49,7 @@ const NetworkPage = () => {
         // Fetch existing connections
         const connectionsQuery = query(
           collection(firestore, "connections"),
-          where("userId", "==", user.uid),
-          limit(20)
+          where("userId", "==", user.uid)
         );
         
         const connectionsSnapshot = await getDocs(connectionsQuery);
@@ -124,24 +123,33 @@ const NetworkPage = () => {
         setConnections(connectionsWithDetails);
         setPendingConnections(pendingWithDetails);
 
-        // Fetch suggested connections (users who are not already connected)
-        const usersQuery = query(
-          collection(firestore, "users"),
-          where("userId", "!=", user.uid),
-          limit(10)
+        // Get received connections (to filter out users who sent you requests)
+        const receivedConnectionsQuery = query(
+          collection(firestore, "connections"),
+          where("connectionId", "==", user.uid)
         );
         
-        const usersSnapshot = await getDocs(usersQuery);
-        const connectedIds = [...connectionsData.map(c => c.connectionId), ...pendingConnections.map(p => p.connectionId)];
+        const receivedConnectionsSnapshot = await getDocs(receivedConnectionsQuery);
+        const receivedConnections = receivedConnectionsSnapshot.docs.map(doc => doc.data());
         
-        const usersData = usersSnapshot.docs
-          .filter(doc => !connectedIds.includes(doc.data().userId))
-          .map(doc => ({
-            id: doc.id,
-            ...doc.data(),
-          })) as UserProfile[];
+        // Get all users for suggestions
+        const allUsers = await getAllUsers();
         
-        setSuggestedConnections(usersData);
+        // Filter out users that are already connected or have pending connections
+        const connectedIds = [...connectionsData.map(c => c.connectionId), user.uid];
+        const receivedPendingUserIds = receivedConnections
+          .filter(c => c.status === "pending")
+          .map(c => c.userId);
+        
+        // Filter out users who sent you requests or are already connected
+        const filteredUsers = allUsers.filter(u => {
+          return (
+            !connectedIds.includes(u.userId) && 
+            !receivedPendingUserIds.includes(u.userId)
+          );
+        });
+        
+        setSuggestedConnections(filteredUsers);
       } catch (error) {
         console.error("Error fetching network data:", error);
         toast({
@@ -176,52 +184,7 @@ const NetworkPage = () => {
       console.error("Error connecting:", error);
       toast({
         title: "Error",
-        description: "Failed to send connection request",
-        variant: "destructive",
-      });
-    }
-  };
-
-  const handleAcceptConnection = async (connectionId: string) => {
-    try {
-      await acceptConnectionRequest(connectionId);
-      
-      // Move from pending to connections
-      const acceptedConnection = pendingConnections.find(conn => conn.id === connectionId);
-      if (acceptedConnection) {
-        setConnections(prev => [...prev, {...acceptedConnection, status: "accepted"}]);
-        setPendingConnections(prev => prev.filter(conn => conn.id !== connectionId));
-      }
-      
-      toast({
-        title: "Connection Accepted",
-        description: "You are now connected",
-      });
-    } catch (error) {
-      console.error("Error accepting connection:", error);
-      toast({
-        title: "Error",
-        description: "Failed to accept connection",
-        variant: "destructive",
-      });
-    }
-  };
-
-  const handleRejectConnection = async (connectionId: string) => {
-    try {
-      await rejectConnectionRequest(connectionId);
-      
-      // Remove from pending connections
-      setPendingConnections(prev => prev.filter(conn => conn.id !== connectionId));
-      
-      toast({
-        description: "Connection request declined",
-      });
-    } catch (error) {
-      console.error("Error rejecting connection:", error);
-      toast({
-        title: "Error",
-        description: "Failed to decline connection request",
+        description: error.message || "Failed to send connection request",
         variant: "destructive",
       });
     }
@@ -276,14 +239,14 @@ const NetworkPage = () => {
         <div className="max-w-4xl mx-auto">
           <h1 className="text-2xl font-bold mb-6">Your Network</h1>
           
-          {/* Manage Invitations */}
+          {/* Pending Sent Invitations */}
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.5 }}
             className="glass-card p-6 mb-6"
           >
-            <h2 className="text-xl font-bold mb-4">Pending Invitations</h2>
+            <h2 className="text-xl font-bold mb-4">Pending Invitations Sent</h2>
             <div className="space-y-4">
               {pendingConnections.length > 0 ? (
                 pendingConnections.map((connection) => (
@@ -301,30 +264,21 @@ const NetworkPage = () => {
                           <p className="font-medium">{connection.name || "User"}</p>
                         </Link>
                         <p className="text-sm text-muted-foreground">
-                          {connection.title || "Professional"}
+                          {connection.title || "Professional"} • Request pending
                         </p>
                       </div>
                     </div>
-                    <div className="flex space-x-2">
-                      <Button 
-                        size="sm" 
-                        className="bg-gradient-to-r from-sigma-blue to-sigma-purple text-white"
-                        onClick={() => handleAcceptConnection(connection.id)}
-                      >
-                        <Check className="w-4 h-4 mr-1" /> Accept
-                      </Button>
-                      <Button 
-                        size="sm" 
-                        variant="outline"
-                        onClick={() => handleRejectConnection(connection.id)}
-                      >
-                        <X className="w-4 h-4 mr-1" /> Decline
-                      </Button>
-                    </div>
+                    <Button 
+                      size="sm" 
+                      variant="outline"
+                      onClick={() => handleRemoveConnection(connection.id)}
+                    >
+                      <X className="w-4 h-4 mr-1" /> Cancel Request
+                    </Button>
                   </div>
                 ))
               ) : (
-                <p className="text-muted-foreground">No pending invitations</p>
+                <p className="text-muted-foreground">No pending invitations sent</p>
               )}
             </div>
           </motion.div>

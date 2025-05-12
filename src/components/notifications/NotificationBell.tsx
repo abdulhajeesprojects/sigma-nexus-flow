@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Bell } from "lucide-react";
@@ -7,19 +8,22 @@ import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { formatDistanceToNow } from "date-fns";
 import { useToast } from "@/hooks/use-toast";
+import { useNavigate } from "react-router-dom";
 
 interface Notification {
   id: string;
-  type: "like" | "comment" | "connection" | "message" | "mention";
+  type: string;
   senderId: string;
-  recipientId: string;
+  userId: string;
   read: boolean;
   createdAt: any;
+  timestamp: any;
   postId?: string;
   commentId?: string;
   messageId?: string;
   connectionId?: string;
   content?: string;
+  message?: string;
   senderName?: string;
   senderPhotoURL?: string;
 }
@@ -29,6 +33,7 @@ const NotificationBell = () => {
   const [unreadCount, setUnreadCount] = useState(0);
   const [isOpen, setIsOpen] = useState(false);
   const { toast } = useToast();
+  const navigate = useNavigate();
 
   useEffect(() => {
     if (!auth.currentUser) return;
@@ -37,18 +42,36 @@ const NotificationBell = () => {
     const notificationsRef = collection(firestore, "notifications");
     const q = query(
       notificationsRef,
-      where("recipientId", "==", userId),
-      orderBy("createdAt", "desc")
+      where("userId", "==", userId),
+      orderBy("timestamp", "desc")
     );
 
-    const unsubscribe = onSnapshot(q, (snapshot) => {
+    const unsubscribe = onSnapshot(q, async (snapshot) => {
       const notificationData: Notification[] = [];
-      snapshot.forEach((doc) => {
-        notificationData.push({ id: doc.id, ...doc.data() } as Notification);
-      });
+      
+      // Get all notifications
+      for (const doc of snapshot.docs) {
+        const notif = { id: doc.id, ...doc.data(), read: doc.data().isRead || false } as Notification;
+        
+        // Fetch sender details
+        try {
+          const senderDoc = await firestore.collection("users").doc(notif.senderId).get();
+          if (senderDoc.exists()) {
+            const senderData = senderDoc.data();
+            notif.senderName = senderData?.displayName || "User";
+            notif.senderPhotoURL = senderData?.photoURL || null;
+          }
+        } catch (err) {
+          console.error("Error fetching sender data:", err);
+        }
+        
+        notificationData.push(notif);
+      }
 
       setNotifications(notificationData);
       setUnreadCount(notificationData.filter((n) => !n.read).length);
+    }, (error) => {
+      console.error("Error fetching notifications:", error);
     });
 
     return () => unsubscribe();
@@ -56,60 +79,55 @@ const NotificationBell = () => {
 
   const handleNotificationClick = async (notification: Notification) => {
     // Mark as read
-    if (!notification.read) {
-      try {
-        const notificationRef = doc(firestore, "notifications", notification.id);
-        await updateDoc(notificationRef, {
-          read: true,
-        });
-      } catch (error) {
-        console.error("Error marking notification as read:", error);
-      }
+    try {
+      const notificationRef = doc(firestore, "notifications", notification.id);
+      await updateDoc(notificationRef, {
+        isRead: true,
+      });
+    } catch (error) {
+      console.error("Error marking notification as read:", error);
     }
 
     // Navigate based on notification type
     switch (notification.type) {
-      case "like":
-      case "comment":
+      case "postLike":
+      case "postComment":
         // Navigate to post
         if (notification.postId) {
-          // window.location.href = `/post/${notification.postId}`;
+          navigate(`/feed?post=${notification.postId}`);
           toast({
-            title: "Navigation",
-            description: `Navigating to post ${notification.postId}`,
+            description: `Viewing post`,
           });
         }
         break;
-      case "connection":
-        // Navigate to profile
+      case "connectionRequest":
+        // Navigate to connection requests
+        navigate("/requests");
+        toast({
+          description: `Viewing connection requests`,
+        });
+        break;
+      case "connectionAccepted":
+        // Navigate to user profile
         if (notification.senderId) {
-          // window.location.href = `/profile/${notification.senderId}`;
+          navigate(`/profile/${notification.senderId}`);
           toast({
-            title: "Navigation",
-            description: `Navigating to profile of ${notification.senderName}`,
+            description: `Viewing ${notification.senderName}'s profile`,
           });
         }
         break;
       case "message":
         // Navigate to messages
-        if (notification.messageId) {
-          // window.location.href = `/messages/${notification.senderId}`;
+        if (notification.senderId) {
+          navigate(`/messages?userId=${notification.senderId}`);
           toast({
-            title: "Navigation",
-            description: `Navigating to message conversation`,
+            description: `Viewing message conversation`,
           });
         }
         break;
-      case "mention":
-        // Navigate to post with mention
-        if (notification.postId) {
-          // window.location.href = `/post/${notification.postId}`;
-          toast({
-            title: "Navigation",
-            description: `Navigating to post with mention`,
-          });
-        }
-        break;
+      default:
+        // Default navigation
+        navigate("/feed");
     }
 
     setIsOpen(false);
@@ -122,7 +140,7 @@ const NotificationBell = () => {
       for (const notification of unreadNotifications) {
         const notificationRef = doc(firestore, "notifications", notification.id);
         await updateDoc(notificationRef, {
-          read: true,
+          isRead: true,
         });
       }
       
@@ -142,24 +160,22 @@ const NotificationBell = () => {
 
   const getNotificationContent = (notification: Notification) => {
     switch (notification.type) {
-      case "like":
+      case "postLike":
         return `${notification.senderName} liked your post`;
-      case "comment":
+      case "postComment":
         return `${notification.senderName} commented on your post: "${notification.content?.substring(0, 30)}${
           notification.content && notification.content.length > 30 ? "..." : ""
         }"`;
-      case "connection":
-        return `${notification.senderName} ${
-          'connectionId' in notification && notification.connectionId ? "accepted your connection request" : "sent you a connection request"
-        }`;
+      case "connectionRequest":
+        return `${notification.senderName} sent you a connection request`;
+      case "connectionAccepted":
+        return `${notification.senderName} accepted your connection request`;
       case "message":
         return `${notification.senderName} sent you a message: "${notification.content?.substring(0, 30)}${
           notification.content && notification.content.length > 30 ? "..." : ""
         }"`;
-      case "mention":
-        return `${notification.senderName} mentioned you in a post`;
       default:
-        return "New notification";
+        return notification.message || "New notification";
     }
   };
 
@@ -222,8 +238,8 @@ const NotificationBell = () => {
                           {getNotificationContent(notification)}
                         </p>
                         <p className="text-xs text-muted-foreground">
-                          {notification.createdAt &&
-                            formatDistanceToNow(notification.createdAt.toDate(), {
+                          {notification.timestamp &&
+                            formatDistanceToNow(notification.timestamp.toDate(), {
                               addSuffix: true,
                             })}
                         </p>
